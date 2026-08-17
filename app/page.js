@@ -39,10 +39,13 @@ export default function Home() {
   const [footerText, setFooterText] = useState('السعر غير شامل الضريبة');
   const [visibility, setVisibility] = useState({ ...DEFAULT_VISIBILITY });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [imagePreview, setImagePreview] = useState(null);
 
   const catalogRef = useRef(null);
   const fileInputRef = useRef(null);
+  const bulkInputRef = useRef(null);
 
   const handleChange = useCallback((field, value) => {
     setProduct(prev => ({ ...prev, [field]: value }));
@@ -87,7 +90,7 @@ export default function Home() {
         logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.8);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -97,7 +100,7 @@ export default function Home() {
       const x = (pdfWidth - imgWidth * ratio) / 2;
       const y = 0;
 
-      pdf.addImage(imgData, 'PNG', x, y, imgWidth * ratio, imgHeight * ratio);
+      pdf.addImage(imgData, 'JPEG', x, y, imgWidth * ratio, imgHeight * ratio, undefined, 'FAST');
 
       const fileName = product.nameEn
         ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf`
@@ -110,6 +113,125 @@ export default function Home() {
       setIsGenerating(false);
     }
   }, [product.nameEn]);
+
+  const handleDownloadTemplate = useCallback(() => {
+    import('xlsx').then((XLSX) => {
+      const headers = [
+        'categoryAr', 'categoryEn', 'nameAr', 'nameEn',
+        'descAr', 'descEn', 'weight', 'unit', 'qtyPerCarton',
+        'pricePerPiece', 'pricePerCarton', 'barcode', 'imageUrl'
+      ];
+      
+      const ws = XLSX.utils.aoa_to_sheet([
+        headers,
+        ['طعام قطط', 'Cat Food', 'معجون بيفيس', 'Beavis Paste', 'وصف...', 'Desc...', '75', 'ml', '12', '10', '120', '123456789', 'https://example.com/image.jpg']
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template');
+      XLSX.writeFile(wb, 'product-catalog-template.xlsx');
+    });
+  }, []);
+
+  const handleBulkUpload = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      
+      if (rows.length === 0) {
+        alert('الملف فارغ');
+        return;
+      }
+
+      setIsBulkGenerating(true);
+      setBulkProgress({ current: 0, total: rows.length });
+
+      const JSZip = (await import('jszip')).default;
+      const { saveAs } = await import('file-saver');
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const zip = new JSZip();
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        
+        // Load image if imageUrl exists
+        let preview = null;
+        if (row.imageUrl) {
+            preview = row.imageUrl;
+        }
+
+        // Update state
+        setProduct({
+          nameAr: row.nameAr || '',
+          nameEn: row.nameEn || '',
+          descAr: row.descAr || '',
+          descEn: row.descEn || '',
+          weight: row.weight || '',
+          unit: row.unit || '',
+          qtyPerCarton: row.qtyPerCarton || '',
+          pricePerPiece: row.pricePerPiece || '',
+          pricePerCarton: row.pricePerCarton || '',
+          barcode: row.barcode || '',
+          image: null,
+        });
+        setImagePreview(preview);
+        setCategoryAr(row.categoryAr || '');
+        setCategoryEn(row.categoryEn || '');
+
+        setBulkProgress({ current: i + 1, total: rows.length });
+
+        // Wait for React to render the DOM and image to load
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        if (catalogRef.current) {
+          const canvas = await html2canvas(catalogRef.current, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+          });
+
+          const imgData = canvas.toDataURL('image/jpeg', 0.8);
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+          const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+          const x = (pdfWidth - imgWidth * ratio) / 2;
+          const y = 0;
+
+          pdf.addImage(imgData, 'JPEG', x, y, imgWidth * ratio, imgHeight * ratio, undefined, 'FAST');
+          
+          const fileName = row.nameEn
+            ? `catalog-${row.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf`
+            : `product-${i+1}.pdf`;
+            
+          const pdfBlob = pdf.output('blob');
+          zip.file(fileName, pdfBlob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, 'catalog-bulk.zip');
+
+    } catch (err) {
+      console.error('Bulk generation error:', err);
+      alert('حدث خطأ أثناء الإنشاء الجماعي');
+    } finally {
+      setIsBulkGenerating(false);
+      setBulkProgress({ current: 0, total: 0 });
+      if (bulkInputRef.current) bulkInputRef.current.value = '';
+    }
+  }, []);
 
   const handleReset = useCallback(() => {
     setProduct({
@@ -378,15 +500,15 @@ export default function Home() {
 
         {/* Actions */}
         <div className="sidebar-actions">
-          <button className="btn btn-primary" onClick={handleDownloadPDF} disabled={isGenerating}>
+          <button className="btn btn-primary" onClick={handleDownloadPDF} disabled={isGenerating || isBulkGenerating}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            {isGenerating ? 'جاري الإنشاء...' : 'تحميل PDF'}
+            {isGenerating ? 'جاري الإنشاء...' : 'تحميل PDF واحد'}
           </button>
-          <button className="btn btn-secondary" onClick={handleReset}>
+          <button className="btn btn-secondary" onClick={handleReset} disabled={isGenerating || isBulkGenerating}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8" />
               <path d="M21 3v5h-5" />
@@ -395,6 +517,40 @@ export default function Home() {
             </svg>
             إعادة تعيين
           </button>
+
+          <div className="bulk-actions" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--border-light)' }}>
+            <div className="form-section-title">إنشاء جماعي (Excel)</div>
+            <button className="btn btn-secondary" onClick={handleDownloadTemplate} style={{ marginBottom: '8px' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              تنزيل قالب إكسل
+            </button>
+            <input 
+              type="file" 
+              accept=".xlsx, .xls" 
+              ref={bulkInputRef} 
+              style={{ display: 'none' }} 
+              onChange={handleBulkUpload} 
+            />
+            <button 
+              className="btn btn-primary" 
+              onClick={() => bulkInputRef.current?.click()} 
+              disabled={isGenerating || isBulkGenerating}
+              style={{ background: '#2e7d32' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              رفع وإنشاء ملفات متعددة (ZIP)
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -509,11 +665,15 @@ export default function Home() {
       </main>
 
       {/* Loading Overlay */}
-      {isGenerating && (
+      {(isGenerating || isBulkGenerating) && (
         <div className="loading-overlay">
           <div className="loading-box">
             <div className="loading-spinner" />
-            <p>جاري إنشاء ملف PDF...</p>
+            <p>
+              {isBulkGenerating 
+                ? `جاري إنشاء ملفات PDF (${bulkProgress.current}/${bulkProgress.total}) يرجى الانتظار...` 
+                : 'جاري إنشاء ملف PDF...'}
+            </p>
           </div>
         </div>
       )}
