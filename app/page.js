@@ -74,37 +74,22 @@ export default function Home() {
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const handleDownloadPDF = useCallback(async () => {
+  const handleDownloadPDF = useCallback(() => {
     if (!catalogRef.current) return;
     setIsGenerating(true);
 
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      window.html2canvas = html2canvas; // required for jsPDF.html()
-      const { jsPDF } = await import('jspdf');
-
-      const pdf = new jsPDF('p', 'pt', 'a4');
-      
-      await pdf.html(catalogRef.current, {
-        margin: [0, 0, 0, 0],
-        autoPaging: 'text',
-        x: 0,
-        y: 0,
-        width: 595,
-        windowWidth: 595
-      });
-
+    setTimeout(() => {
+      const originalTitle = document.title;
       const fileName = bulkProducts.length > 0 
-        ? 'catalog-bulk.pdf' 
-        : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf` : 'product-catalog.pdf');
-        
-      pdf.save(fileName);
-    } catch (err) {
-      console.error('PDF generation error:', err);
-      alert('حدث خطأ أثناء إنشاء ملف PDF');
-    } finally {
+        ? 'catalog-bulk' 
+        : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}` : 'product-catalog');
+      
+      document.title = fileName;
+      window.print();
+      document.title = originalTitle;
+      
       setIsGenerating(false);
-    }
+    }, 500);
   }, [product.nameEn, bulkProducts]);
 
   const handleDownloadTemplate = useCallback(() => {
