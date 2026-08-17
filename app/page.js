@@ -42,6 +42,7 @@ export default function Home() {
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [imagePreview, setImagePreview] = useState(null);
+  const [bulkProducts, setBulkProducts] = useState([]);
 
   const catalogRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -73,45 +74,17 @@ export default function Home() {
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (!catalogRef.current) return;
+  const handleDownloadPDF = useCallback(() => {
     setIsGenerating(true);
-
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      const element = catalogRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.8);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const x = (pdfWidth - imgWidth * ratio) / 2;
-      const y = 0;
-
-      pdf.addImage(imgData, 'JPEG', x, y, imgWidth * ratio, imgHeight * ratio, undefined, 'FAST');
-
-      const fileName = product.nameEn
-        ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf`
-        : 'product-catalog.pdf';
-      pdf.save(fileName);
-    } catch (err) {
-      console.error('PDF generation error:', err);
-      alert('حدث خطأ أثناء إنشاء ملف PDF');
-    } finally {
+    setTimeout(() => {
+      const originalTitle = document.title;
+      document.title = product.nameEn
+        ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}`
+        : 'product-catalog';
+      window.print();
+      document.title = originalTitle;
       setIsGenerating(false);
-    }
+    }, 500);
   }, [product.nameEn]);
 
   const handleDownloadTemplate = useCallback(() => {
@@ -154,87 +127,44 @@ export default function Home() {
       setIsBulkGenerating(true);
       setBulkProgress({ current: 0, total: rows.length });
 
-      const JSZip = (await import('jszip')).default;
-      const { saveAs } = await import('file-saver');
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
+      const parsedProducts = rows.map((row) => ({
+        nameAr: row.nameAr || '',
+        nameEn: row.nameEn || '',
+        descAr: row.descAr || '',
+        descEn: row.descEn || '',
+        weight: row.weight || '',
+        unit: row.unit || '',
+        qtyPerCarton: row.qtyPerCarton || '',
+        pricePerPiece: row.pricePerPiece || '',
+        pricePerCarton: row.pricePerCarton || '',
+        barcode: row.barcode || '',
+        imagePreview: row.imageUrl || null,
+        categoryAr: row.categoryAr || categoryAr,
+        categoryEn: row.categoryEn || categoryEn,
+      }));
 
-      const zip = new JSZip();
+      setBulkProducts(parsedProducts);
 
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        
-        // Load image if imageUrl exists
-        let preview = null;
-        if (row.imageUrl) {
-            preview = row.imageUrl;
-        }
-
-        // Update state
-        setProduct({
-          nameAr: row.nameAr || '',
-          nameEn: row.nameEn || '',
-          descAr: row.descAr || '',
-          descEn: row.descEn || '',
-          weight: row.weight || '',
-          unit: row.unit || '',
-          qtyPerCarton: row.qtyPerCarton || '',
-          pricePerPiece: row.pricePerPiece || '',
-          pricePerCarton: row.pricePerCarton || '',
-          barcode: row.barcode || '',
-          image: null,
-        });
-        setImagePreview(preview);
-        setCategoryAr(row.categoryAr || '');
-        setCategoryEn(row.categoryEn || '');
-
-        setBulkProgress({ current: i + 1, total: rows.length });
-
-        // Wait for React to render the DOM and image to load
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        if (catalogRef.current) {
-          const canvas = await html2canvas(catalogRef.current, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-          });
-
-          const imgData = canvas.toDataURL('image/jpeg', 0.8);
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = pdf.internal.pageSize.getHeight();
-          const imgWidth = canvas.width;
-          const imgHeight = canvas.height;
-          const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-          const x = (pdfWidth - imgWidth * ratio) / 2;
-          const y = 0;
-
-          pdf.addImage(imgData, 'JPEG', x, y, imgWidth * ratio, imgHeight * ratio, undefined, 'FAST');
-          
-          const fileName = row.nameEn
-            ? `catalog-${row.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf`
-            : `product-${i+1}.pdf`;
-            
-          const pdfBlob = pdf.output('blob');
-          zip.file(fileName, pdfBlob);
-        }
-      }
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, 'catalog-bulk.zip');
+      // Wait for DOM to render the bulk products and images to hopefully load
+      setTimeout(() => {
+        setIsBulkGenerating(false);
+        const originalTitle = document.title;
+        document.title = 'catalog-bulk';
+        window.print();
+        document.title = originalTitle;
+        setBulkProducts([]); // Clear after printing
+        setBulkProgress({ current: 0, total: 0 });
+      }, 2000);
 
     } catch (err) {
       console.error('Bulk generation error:', err);
       alert('حدث خطأ أثناء الإنشاء الجماعي');
-    } finally {
       setIsBulkGenerating(false);
       setBulkProgress({ current: 0, total: 0 });
+    } finally {
       if (bulkInputRef.current) bulkInputRef.current.value = '';
     }
-  }, []);
+  }, [categoryAr, categoryEn]);
 
   const handleReset = useCallback(() => {
     setProduct({
@@ -259,6 +189,15 @@ export default function Home() {
   ];
   const visibleTableFields = tableFields.filter(f => visibility[f.key]);
   const hasDescription = visibility.descAr || visibility.descEn;
+
+  const currentProductData = {
+    ...product,
+    categoryAr,
+    categoryEn,
+    imagePreview
+  };
+
+  const productsToRender = bulkProducts.length > 0 ? bulkProducts : [currentProductData];
 
   return (
     <div className="app-wrapper">
@@ -551,7 +490,7 @@ export default function Home() {
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
-              رفع وإنشاء ملفات متعددة (ZIP)
+              رفع وإنشاء ملف PDF مجمع
             </button>
           </div>
         </div>
@@ -559,112 +498,122 @@ export default function Home() {
 
       {/* Main Content - Catalog Preview */}
       <main className="main-content">
-        <div className="catalog-page" ref={catalogRef}>
-          {/* Header */}
-          <div className="catalog-header">
-            <div className="cat-name-ar">
-              {categoryAr || <span className="empty-field">التصنيف</span>}
-            </div>
-            <div className="cat-name-en">
-              {categoryEn || <span className="empty-field">CATEGORY</span>}
-            </div>
-          </div>
-
-          {/* Product Card */}
-          <div className="product-card">
-            {/* Image */}
-            {visibility.image && (
-              <div className="product-image-section">
-                {imagePreview ? (
-                  <img src={imagePreview} alt={product.nameAr || 'Product'} />
-                ) : (
-                  <div className="product-image-placeholder">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="8.5" cy="8.5" r="1.5" />
-                      <path d="M21 15l-5-5L5 21" />
-                    </svg>
-                    <span>صورة المنتج</span>
-                  </div>
-                )}
+        {productsToRender.map((prod, index) => (
+          <div 
+            key={index} 
+            className="catalog-page" 
+            ref={index === 0 ? catalogRef : null}
+            style={{ 
+              pageBreakAfter: index < productsToRender.length - 1 ? 'always' : 'auto',
+              marginBottom: index < productsToRender.length - 1 ? '20px' : '0' 
+            }}
+          >
+            {/* Header */}
+            <div className="catalog-header">
+              <div className="cat-name-ar">
+                {prod.categoryAr || <span className="empty-field">التصنيف</span>}
               </div>
-            )}
-
-            {/* Product Name AR */}
-            {visibility.nameAr && (
-              <div className="product-title-ar">
-                {product.nameAr || <span className="empty-field">اسم المنتج بالعربي</span>}
+              <div className="cat-name-en">
+                {prod.categoryEn || <span className="empty-field">CATEGORY</span>}
               </div>
-            )}
+            </div>
 
-            {/* Product Name EN */}
-            {visibility.nameEn && (
-              <div className="product-title-en-wrapper">
-                <div className="product-title-en">
-                  {product.nameEn || <span className="empty-field">Product Name in English</span>}
+            {/* Product Card */}
+            <div className="product-card">
+              {/* Image */}
+              {visibility.image && (
+                <div className="product-image-section">
+                  {prod.imagePreview ? (
+                    <img src={prod.imagePreview} alt={prod.nameAr || 'Product'} />
+                  ) : (
+                    <div className="product-image-placeholder">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <path d="M21 15l-5-5L5 21" />
+                      </svg>
+                      <span>صورة المنتج</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Description */}
-            {hasDescription && (
-              <div className="product-description" style={{
-                justifyContent: 'center',
-                flexDirection: (!visibility.descEn && visibility.descAr) || (visibility.descEn && !visibility.descAr) ? 'column' : 'row',
-              }}>
-                {visibility.descAr && (
-                  <div className="desc-ar" style={{
-                    maxWidth: !visibility.descEn ? '100%' : undefined,
-                  }}>
-                    {product.descAr || <span className="empty-field">وصف المنتج بالعربي</span>}
-                  </div>
-                )}
-                {visibility.descEn && (
-                  <div className="desc-en" style={{
-                    maxWidth: !visibility.descAr ? '100%' : undefined,
-                  }}>
-                    {product.descEn || <span className="empty-field">Product description in English</span>}
-                  </div>
-                )}
-              </div>
-            )}
+              {/* Product Name AR */}
+              {visibility.nameAr && (
+                <div className="product-title-ar">
+                  {prod.nameAr || <span className="empty-field">اسم المنتج بالعربي</span>}
+                </div>
+              )}
 
-            {/* Info and Barcode Grid */}
-            {(visibleTableFields.length > 0 || visibility.barcode) && (
-              <div className="details-grid">
-                {visibleTableFields.map(f => (
-                  <div key={f.key} className="detail-item">
-                    <div className="detail-label">{f.label}</div>
-                    <div className="detail-value">
-                      {f.key === 'weight'
-                        ? (product.weight
-                          ? `${product.weight}${visibility.unit && product.unit ? ' ' + product.unit : ''}`
-                          : <span className="empty-field">-</span>)
-                        : (product[f.key] || <span className="empty-field">-</span>)
-                      }
+              {/* Product Name EN */}
+              {visibility.nameEn && (
+                <div className="product-title-en-wrapper">
+                  <div className="product-title-en">
+                    {prod.nameEn || <span className="empty-field">Product Name in English</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {hasDescription && (
+                <div className="product-description" style={{
+                  justifyContent: 'center',
+                  flexDirection: (!visibility.descEn && visibility.descAr) || (visibility.descEn && !visibility.descAr) ? 'column' : 'row',
+                }}>
+                  {visibility.descAr && (
+                    <div className="desc-ar" style={{
+                      maxWidth: !visibility.descEn ? '100%' : undefined,
+                    }}>
+                      {prod.descAr || <span className="empty-field">وصف المنتج بالعربي</span>}
                     </div>
-                  </div>
-                ))}
-
-                {visibility.barcode && (
-                  <div className="detail-item barcode-item">
-                    <div className="detail-label">باركود</div>
-                    <div className="detail-value barcode-value">
-                      {product.barcode || <span className="empty-field">0000000000000</span>}
+                  )}
+                  {visibility.descEn && (
+                    <div className="desc-en" style={{
+                      maxWidth: !visibility.descAr ? '100%' : undefined,
+                    }}>
+                      {prod.descEn || <span className="empty-field">Product description in English</span>}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
+
+              {/* Info and Barcode Grid */}
+              {(visibleTableFields.length > 0 || visibility.barcode) && (
+                <div className="details-grid">
+                  {visibleTableFields.map(f => (
+                    <div key={f.key} className="detail-item">
+                      <div className="detail-label">{f.label}</div>
+                      <div className="detail-value">
+                        {f.key === 'weight'
+                          ? (prod.weight
+                            ? `${prod.weight}${visibility.unit && prod.unit ? ' ' + prod.unit : ''}`
+                            : <span className="empty-field">-</span>)
+                          : (prod[f.key] || <span className="empty-field">-</span>)
+                        }
+                      </div>
+                    </div>
+                  ))}
+
+                  {visibility.barcode && (
+                    <div className="detail-item barcode-item">
+                      <div className="detail-label">باركود</div>
+                      <div className="detail-value barcode-value">
+                        {prod.barcode || <span className="empty-field">0000000000000</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {footerText && (
+              <div className="catalog-footer">
+                <div className="footer-note">{footerText}</div>
               </div>
             )}
           </div>
-
-          {/* Footer */}
-          {footerText && (
-            <div className="catalog-footer">
-              <div className="footer-note">{footerText}</div>
-            </div>
-          )}
-        </div>
+        ))}
       </main>
 
       {/* Loading Overlay */}
@@ -674,9 +623,10 @@ export default function Home() {
             <div className="loading-spinner" />
             <p>
               {isBulkGenerating 
-                ? `جاري إنشاء ملفات PDF (${bulkProgress.current}/${bulkProgress.total}) يرجى الانتظار...` 
-                : 'جاري إنشاء ملف PDF...'}
+                ? 'جاري تجهيز المنتجات للطباعة الجماعية...' 
+                : 'جاري تجهيز المنتج للطباعة...'}
             </p>
+            <div className="loading-sub">الرجاء الانتظار قليلاً</div>
           </div>
         </div>
       )}
