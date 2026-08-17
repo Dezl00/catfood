@@ -74,18 +74,38 @@ export default function Home() {
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const handleDownloadPDF = useCallback(() => {
+  const handleDownloadPDF = useCallback(async () => {
+    if (!catalogRef.current) return;
     setIsGenerating(true);
-    setTimeout(() => {
-      const originalTitle = document.title;
-      document.title = product.nameEn
-        ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}`
-        : 'product-catalog';
-      window.print();
-      document.title = originalTitle;
+
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      window.html2canvas = html2canvas; // required for jsPDF.html()
+      const { jsPDF } = await import('jspdf');
+
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      
+      await pdf.html(catalogRef.current, {
+        margin: [0, 0, 0, 0],
+        autoPaging: 'text',
+        x: 0,
+        y: 0,
+        width: 595,
+        windowWidth: 595
+      });
+
+      const fileName = bulkProducts.length > 0 
+        ? 'catalog-bulk.pdf' 
+        : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf` : 'product-catalog.pdf');
+        
+      pdf.save(fileName);
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      alert('حدث خطأ أثناء إنشاء ملف PDF');
+    } finally {
       setIsGenerating(false);
-    }, 500);
-  }, [product.nameEn]);
+    }
+  }, [product.nameEn, bulkProducts]);
 
   const handleDownloadTemplate = useCallback(() => {
     Promise.all([import('xlsx'), import('file-saver')]).then(([XLSX, FileSaver]) => {
@@ -148,13 +168,9 @@ export default function Home() {
       // Wait for DOM to render the bulk products and images to hopefully load
       setTimeout(() => {
         setIsBulkGenerating(false);
-        const originalTitle = document.title;
-        document.title = 'catalog-bulk';
-        window.print();
-        document.title = originalTitle;
-        setBulkProducts([]); // Clear after printing
         setBulkProgress({ current: 0, total: 0 });
-      }, 2000);
+        // Removed auto window.print() so the user can review and click Download Bulk PDF.
+      }, 1000);
 
     } catch (err) {
       console.error('Bulk generation error:', err);
@@ -175,6 +191,7 @@ export default function Home() {
     setImagePreview(null);
     setCategoryAr('');
     setCategoryEn('');
+    setBulkProducts([]);
     setFooterText('السعر غير شامل الضريبة');
     setVisibility({ ...DEFAULT_VISIBILITY });
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -442,15 +459,20 @@ export default function Home() {
 
         {/* Actions */}
         <div className="sidebar-actions">
-          <button className="btn btn-primary" onClick={handleDownloadPDF} disabled={isGenerating || isBulkGenerating}>
+          <button 
+            className="btn btn-primary" 
+            onClick={handleDownloadPDF} 
+            disabled={isGenerating}
+            style={bulkProducts.length > 0 ? { background: '#2e7d32' } : {}}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            {isGenerating ? 'جاري الإنشاء...' : 'تحميل PDF واحد'}
+            {isGenerating ? 'جاري التصدير...' : (bulkProducts.length > 0 ? 'تصدير PDF مجمع' : 'تصدير PDF')}
           </button>
-          <button className="btn btn-secondary" onClick={handleReset} disabled={isGenerating || isBulkGenerating}>
+          <button className="btn btn-secondary" onClick={handleReset} disabled={isGenerating}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8" />
               <path d="M21 3v5h-5" />
@@ -490,7 +512,7 @@ export default function Home() {
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
-              رفع وإنشاء ملف PDF مجمع
+              رفع وإنشاء ملفات متعددة للطباعة
             </button>
           </div>
         </div>
@@ -498,18 +520,18 @@ export default function Home() {
 
       {/* Main Content - Catalog Preview */}
       <main className="main-content">
-        {productsToRender.map((prod, index) => (
-          <div 
-            key={index} 
-            className="catalog-page" 
-            ref={index === 0 ? catalogRef : null}
-            style={{ 
-              pageBreakAfter: index < productsToRender.length - 1 ? 'always' : 'auto',
-              marginBottom: index < productsToRender.length - 1 ? '20px' : '0' 
-            }}
-          >
-            {/* Header */}
-            <div className="catalog-header">
+        <div ref={catalogRef} style={{ width: '595px', display: 'flex', flexDirection: 'column' }}>
+          {productsToRender.map((prod, index) => (
+            <div 
+              key={index} 
+              className="catalog-page" 
+              style={{ 
+                pageBreakAfter: index < productsToRender.length - 1 ? 'always' : 'auto',
+                marginBottom: index < productsToRender.length - 1 ? '20px' : '0' 
+              }}
+            >
+              {/* Header */}
+              <div className="catalog-header">
               <div className="cat-name-ar">
                 {prod.categoryAr || <span className="empty-field">التصنيف</span>}
               </div>
@@ -606,14 +628,15 @@ export default function Home() {
               )}
             </div>
 
-            {/* Footer */}
-            {footerText && (
-              <div className="catalog-footer">
-                <div className="footer-note">{footerText}</div>
-              </div>
-            )}
-          </div>
-        ))}
+              {/* Footer */}
+              {footerText && (
+                <div className="catalog-footer">
+                  <div className="footer-note">{footerText}</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </main>
 
       {/* Loading Overlay */}
