@@ -470,40 +470,31 @@ export default function Home() {
               </div>
             )}
 
-            {/* Info Table */}
-            {visibleTableFields.length > 0 && (
-              <table className="info-table">
-                <thead>
-                  <tr>
-                    {visibleTableFields.map(f => (
-                      <th key={f.key}>{f.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    {visibleTableFields.map(f => (
-                      <td key={f.key}>
-                        {f.key === 'weight'
-                          ? (product.weight
-                            ? `${product.weight}${visibility.unit && product.unit ? ' ' + product.unit : ''}`
-                            : '-')
-                          : (product[f.key] || '-')
-                        }
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            )}
+            {/* Info and Barcode Grid */}
+            {(visibleTableFields.length > 0 || visibility.barcode) && (
+              <div className="details-grid">
+                {visibleTableFields.map(f => (
+                  <div key={f.key} className="detail-item">
+                    <div className="detail-label">{f.label}</div>
+                    <div className="detail-value">
+                      {f.key === 'weight'
+                        ? (product.weight
+                          ? `${product.weight}${visibility.unit && product.unit ? ' ' + product.unit : ''}`
+                          : <span className="empty-field">-</span>)
+                        : (product[f.key] || <span className="empty-field">-</span>)
+                      }
+                    </div>
+                  </div>
+                ))}
 
-            {/* Barcode */}
-            {visibility.barcode && (
-              <div className="barcode-section">
-                <div className="barcode-label">باركود</div>
-                <div className="barcode-value">
-                  {product.barcode || <span className="empty-field">0000000000000</span>}
-                </div>
+                {visibility.barcode && (
+                  <div className="detail-item barcode-item">
+                    <div className="detail-label">باركود</div>
+                    <div className="detail-value barcode-value">
+                      {product.barcode || <span className="empty-field">0000000000000</span>}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
