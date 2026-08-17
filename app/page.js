@@ -115,7 +115,7 @@ export default function Home() {
   }, [product.nameEn]);
 
   const handleDownloadTemplate = useCallback(() => {
-    import('xlsx').then((XLSX) => {
+    Promise.all([import('xlsx'), import('file-saver')]).then(([XLSX, FileSaver]) => {
       const headers = [
         'categoryAr', 'categoryEn', 'nameAr', 'nameEn',
         'descAr', 'descEn', 'weight', 'unit', 'qtyPerCarton',
@@ -124,11 +124,14 @@ export default function Home() {
       
       const ws = XLSX.utils.aoa_to_sheet([
         headers,
-        ['طعام قطط', 'Cat Food', 'معجون بيفيس', 'Beavis Paste', 'وصف...', 'Desc...', '75', 'ml', '12', '10', '120', '123456789', 'https://example.com/image.jpg']
+        ['طعام قطط', 'Cat Food', 'معجون بيفيس', 'Beavis Paste', 'وصف قصير بالعربي...', 'Short English desc...', '75', 'ml', '12', '10', '120', '123456789', '']
       ]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Template');
-      XLSX.writeFile(wb, 'product-catalog-template.xlsx');
+      
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      FileSaver.saveAs(blob, 'product-catalog-template.xlsx');
     });
   }, []);
 
