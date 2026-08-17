@@ -453,18 +453,18 @@ export default function Home() {
                 justifyContent: 'center',
                 flexDirection: (!visibility.descEn && visibility.descAr) || (visibility.descEn && !visibility.descAr) ? 'column' : 'row',
               }}>
-                {visibility.descEn && (
-                  <div className="desc-en" style={{
-                    maxWidth: !visibility.descAr ? '100%' : undefined,
-                  }}>
-                    {product.descEn || <span className="empty-field">Product description in English</span>}
-                  </div>
-                )}
                 {visibility.descAr && (
                   <div className="desc-ar" style={{
                     maxWidth: !visibility.descEn ? '100%' : undefined,
                   }}>
                     {product.descAr || <span className="empty-field">وصف المنتج بالعربي</span>}
+                  </div>
+                )}
+                {visibility.descEn && (
+                  <div className="desc-en" style={{
+                    maxWidth: !visibility.descAr ? '100%' : undefined,
+                  }}>
+                    {product.descEn || <span className="empty-field">Product description in English</span>}
                   </div>
                 )}
               </div>
