@@ -1,6 +1,63 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortablePageCard({ id, product, index, onDelete, onEdit, onImageDrop }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 1 : 0,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      onImageDrop(e.dataTransfer.files[0], index);
+    }
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={{ ...style, background: '#fff', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'grab' }}
+      {...attributes} 
+      {...listeners}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px' }}>
+        <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEdit(index); }} onPointerDown={e => e.stopPropagation()} style={{ background: 'var(--bg-section)', border: 'none', borderRadius: '4px', padding: '4px', cursor: 'pointer', color: 'var(--primary)' }} title="تعديل">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); onDelete(index); }} onPointerDown={e => e.stopPropagation()} style={{ background: '#fee2e2', border: 'none', borderRadius: '4px', padding: '4px', cursor: 'pointer', color: '#dc2626' }} title="حذف">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
+  const [editingPageIndex, setEditingPageIndex] = useState(null);
+      <div style={{ alignSelf: 'center', margin: '8px 0', pointerEvents: 'none' }}>
+        {product.imagePreview ? (
+          <img src={product.imagePreview} alt="Preview" style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '4px' }} />
+        ) : (
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--border-color)" strokeWidth="1">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        )}
+      </div>
+      <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' }}>{product.nameAr || 'بدون اسم'}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>صفحة {index + 1}</div>
+    </div>
+  );
+}
 
 const FIELD_CONFIG = [
   { key: 'image', labelAr: 'الصورة', labelEn: 'Image' },
@@ -163,6 +220,7 @@ export default function Home() {
       }
 
       const parsedProducts = rows.map((row) => ({
+        _id: Math.random().toString(36).substr(2, 9),
         nameAr: row.nameAr || '',
         nameEn: row.nameEn || '',
         descAr: row.descAr || '',
@@ -225,13 +283,65 @@ export default function Home() {
 
   const productsToRender = bulkProducts.length > 0 ? bulkProducts : [currentProductData];
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = useCallback((event) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setBulkProducts((items) => {
+        const oldIndex = items.findIndex((item) => item._id === active.id);
+        const newIndex = items.findIndex((item) => item._id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }, []);
+
+  const handleGridImageDrop = useCallback((file, index) => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setBulkProducts(prev => {
+          const newProducts = [...prev];
+          newProducts[index].imagePreview = ev.target.result;
+          newProducts[index].image = file;
+          return newProducts;
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const handleGridDelete = useCallback((index) => {
+    if (window.confirm('هل أنت متأكد من حذف هذه الصفحة؟')) {
+      setBulkProducts(prev => prev.filter((_, i) => i !== index));
+    }
+  }, []);
+
+  const handleGridEdit = useCallback((index) => {
+    setEditingPageIndex(index);
+  }, []);
+
+  const handleSavePageEdit = (e) => {
+    e.preventDefault();
+    setEditingPageIndex(null);
+  };
+
   return (
     <div className="app-wrapper">
       {/* Sidebar - Form Controls */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2>
-            <span className="icon">📦</span>
+            <span className="icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </span>
             أداة كتالوج المنتجات
           </h2>
         </div>
@@ -245,6 +355,14 @@ export default function Home() {
               <div
                 className={`image-upload-zone ${imagePreview ? 'has-image' : ''}`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    fileInputRef.current.files = e.dataTransfer.files;
+                    handleImageUpload({ target: { files: e.dataTransfer.files } });
+                  }
+                }}
               >
                 <input
                   ref={fileInputRef}
@@ -260,7 +378,10 @@ export default function Home() {
                       onClick={(e) => { e.stopPropagation(); removeImage(); }}
                       title="حذف الصورة"
                     >
-                      ✕
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
                     </button>
                   </>
                 ) : (
@@ -279,29 +400,31 @@ export default function Home() {
           {(visibility.nameAr || visibility.nameEn) && (
             <div className="form-section">
               <div className="form-section-title">اسم المنتج</div>
-              {visibility.nameAr && (
-                <div className="form-group">
-                  <label>الاسم بالعربي</label>
-                  <input
-                    type="text"
-                    placeholder="مثال: بيفيس معجون للقطط المعقمة"
-                    value={product.nameAr}
-                    onChange={(e) => handleChange('nameAr', e.target.value)}
-                  />
-                </div>
-              )}
-              {visibility.nameEn && (
-                <div className="form-group">
-                  <label>الاسم بالانجليزي</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Beavis Cat Sterilized Hairball Control Paste"
-                    value={product.nameEn}
-                    onChange={(e) => handleChange('nameEn', e.target.value)}
-                    style={{ fontFamily: 'var(--font-en)', direction: 'ltr', textAlign: 'left' }}
-                  />
-                </div>
-              )}
+              <div className="form-grid">
+                {visibility.nameAr && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label>الاسم بالعربي</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: بيفيس معجون للقطط المعقمة"
+                      value={product.nameAr}
+                      onChange={(e) => handleChange('nameAr', e.target.value)}
+                    />
+                  </div>
+                )}
+                {visibility.nameEn && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label>الاسم بالانجليزي</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Beavis Cat Sterilized Hairball Control Paste"
+                      value={product.nameEn}
+                      onChange={(e) => handleChange('nameEn', e.target.value)}
+                      style={{ fontFamily: 'var(--font-en)', direction: 'ltr', textAlign: 'left' }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -340,9 +463,9 @@ export default function Home() {
             visibility.pricePerPiece || visibility.pricePerCarton) && (
             <div className="form-section">
               <div className="form-section-title">تفاصيل المنتج</div>
-              <div className="form-row">
+              <div className="form-grid">
                 {visibility.weight && (
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label>الوزن</label>
                     <input
                       type="text"
@@ -353,7 +476,7 @@ export default function Home() {
                   </div>
                 )}
                 {visibility.unit && (
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label>الوحدة</label>
                     <input
                       type="text"
@@ -363,10 +486,8 @@ export default function Home() {
                     />
                   </div>
                 )}
-              </div>
-              <div className="form-row">
                 {visibility.qtyPerCarton && (
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label>العدد بالكرتون</label>
                     <input
                       type="text"
@@ -377,7 +498,7 @@ export default function Home() {
                   </div>
                 )}
                 {visibility.pricePerPiece && (
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label>سعر الحبة</label>
                     <input
                       type="text"
@@ -387,18 +508,18 @@ export default function Home() {
                     />
                   </div>
                 )}
+                {visibility.pricePerCarton && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label>سعر الكرتون</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: 144"
+                      value={product.pricePerCarton}
+                      onChange={(e) => handleChange('pricePerCarton', e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
-              {visibility.pricePerCarton && (
-                <div className="form-group">
-                  <label>سعر الكرتون</label>
-                  <input
-                    type="text"
-                    placeholder="مثال: 144"
-                    value={product.pricePerCarton}
-                    onChange={(e) => handleChange('pricePerCarton', e.target.value)}
-                  />
-                </div>
-              )}
             </div>
           )}
 
@@ -420,32 +541,23 @@ export default function Home() {
           )}
 
           {/* Advanced Settings */}
-          <div className="advanced-settings-section" style={{ marginTop: '20px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+          <div className="advanced-settings-section">
             <button 
-              className="btn btn-secondary" 
+              className={`advanced-settings-toggle ${showAdvancedSettings ? 'open' : ''}`}
               onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-              style={{ width: '100%', justifyContent: 'space-between', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17" />
+              <span className="toggle-content">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                 </svg>
                 إعدادات متقدمة
               </span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: showAdvancedSettings ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </button>
 
-            {showAdvancedSettings && (
-              <div className="advanced-settings-content" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg-section)', borderRadius: 'var(--radius-md)' }}>
-                {/* Footer Text */}
-                <div className="footer-input-group" style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-secondary)' }}>نص التذييل</label>
-                  <input
-                    type="text"
-                    value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
                     placeholder="مثال: السعر غير شامل الضريبة"
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
                   />
@@ -755,7 +867,9 @@ export default function Home() {
                             <button onClick={() => {
                                 const newP = bulkProducts.filter((_, idx) => idx !== i);
                                 setBulkProducts(newP);
-                            }} style={{ background: '#d32f2f', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>حذف</button>
+                            }} style={{ background: 'transparent', color: '#dc2626', border: 'none', padding: '6px', borderRadius: '4px', cursor: 'pointer' }} title="حذف">
+                              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -764,30 +878,21 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="bulk-pages-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px' }}>
-                  {bulkProducts.map((p, i) => (
-                    <div 
-                      key={i} 
-                      draggable 
-                      onDragStart={(e) => e.dataTransfer.setData('pageIndex', i)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                          e.preventDefault();
-                          const sourceIndex = parseInt(e.dataTransfer.getData('pageIndex'), 10);
-                          if (sourceIndex === i || isNaN(sourceIndex)) return;
-                          const newArr = [...bulkProducts];
-                          const [moved] = newArr.splice(sourceIndex, 1);
-                          newArr.splice(i, 0, moved);
-                          setBulkProducts(newArr);
-                      }}
-                      style={{ background: '#fff', border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '20px 10px', textAlign: 'center', cursor: 'grab', transition: 'all 0.2s' }}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                    >
-                      <div style={{ fontSize: '32px', marginBottom: '12px' }}>📄</div>
-                      <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nameAr || 'بدون اسم'}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>صفحة {i + 1}</div>
-                    </div>
-                  ))}
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={bulkProducts.map(p => p._id)} strategy={rectSortingStrategy}>
+                      {bulkProducts.map((p, i) => (
+                        <SortablePageCard 
+                          key={p._id} 
+                          id={p._id} 
+                          product={p} 
+                          index={i} 
+                          onDelete={handleGridDelete} 
+                          onEdit={handleGridEdit} 
+                          onImageDrop={handleGridImageDrop} 
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )}
             </div>
@@ -813,6 +918,61 @@ export default function Home() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Single Page Modal */}
+      {editingPageIndex !== null && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content" style={{ background: 'var(--bg-card)', width: '600px', maxWidth: '90vw', maxHeight: '90vh', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header" style={{ padding: '20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, color: 'var(--primary)' }}>تعديل صفحة المنتج</h2>
+              <button onClick={() => setEditingPageIndex(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              <form onSubmit={handleSavePageEdit}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>الاسم بالعربي</label>
+                    <input type="text" value={bulkProducts[editingPageIndex].nameAr} onChange={e => {
+                      const newP = [...bulkProducts];
+                      newP[editingPageIndex].nameAr = e.target.value;
+                      setBulkProducts(newP);
+                    }} />
+                  </div>
+                  <div className="form-group">
+                    <label>الاسم بالانجليزي</label>
+                    <input type="text" value={bulkProducts[editingPageIndex].nameEn} onChange={e => {
+                      const newP = [...bulkProducts];
+                      newP[editingPageIndex].nameEn = e.target.value;
+                      setBulkProducts(newP);
+                    }} />
+                  </div>
+                  <div className="form-group">
+                    <label>السعر</label>
+                    <input type="text" value={bulkProducts[editingPageIndex].pricePerPiece} onChange={e => {
+                      const newP = [...bulkProducts];
+                      newP[editingPageIndex].pricePerPiece = e.target.value;
+                      setBulkProducts(newP);
+                    }} />
+                  </div>
+                  <div className="form-group">
+                    <label>الباركود</label>
+                    <input type="text" value={bulkProducts[editingPageIndex].barcode} onChange={e => {
+                      const newP = [...bulkProducts];
+                      newP[editingPageIndex].barcode = e.target.value;
+                      setBulkProducts(newP);
+                    }} />
+                  </div>
+                </div>
+                <div style={{ marginTop: '20px', textAlign: 'left' }}>
+                  <button type="submit" className="btn btn-primary">حفظ وإغلاق</button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
