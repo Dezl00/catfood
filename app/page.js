@@ -556,39 +556,59 @@ export default function Home() {
 
             {/* Product Card */}
             <div className="product-card">
-              {/* Image */}
-              {visibility.image && (
-                <div className="product-image-section">
-                  {prod.imagePreview ? (
-                    <img src={prod.imagePreview} alt={prod.nameAr || 'Product'} />
-                  ) : (
-                    <div className="product-image-placeholder">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <path d="M21 15l-5-5L5 21" />
-                      </svg>
-                      <span>صورة المنتج</span>
+              {/* Image and Titles Wrapper */}
+              <div className="image-and-title-wrapper" style={{ position: 'relative', marginBottom: '28px', marginTop: '16px' }}>
+                
+                {/* Product Name AR (Top Edge) */}
+                {visibility.nameAr && (
+                  <div className="product-title-ar-wrapper" style={{
+                    position: 'absolute',
+                    top: '-16px',
+                    left: '0',
+                    right: '0',
+                    textAlign: 'center',
+                    zIndex: 2
+                  }}>
+                    <div className="product-title-ar">
+                      {prod.nameAr || <span className="empty-field">اسم المنتج بالعربي</span>}
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* Product Name AR */}
-              {visibility.nameAr && (
-                <div className="product-title-ar">
-                  {prod.nameAr || <span className="empty-field">اسم المنتج بالعربي</span>}
-                </div>
-              )}
-
-              {/* Product Name EN */}
-              {visibility.nameEn && (
-                <div className="product-title-en-wrapper">
-                  <div className="product-title-en">
-                    {prod.nameEn || <span className="empty-field">Product Name in English</span>}
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Image */}
+                {visibility.image && (
+                  <div className="product-image-section">
+                    {prod.imagePreview ? (
+                      <img src={prod.imagePreview} alt={prod.nameAr || 'Product'} />
+                    ) : (
+                      <div className="product-image-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 21" />
+                        </svg>
+                        <span>صورة المنتج</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Product Name EN (Bottom Edge) */}
+                {visibility.nameEn && (
+                  <div className="product-title-en-wrapper" style={{
+                    position: 'absolute',
+                    bottom: '-14px',
+                    left: '0',
+                    right: '0',
+                    textAlign: 'center',
+                    zIndex: 2
+                  }}>
+                    <div className="product-title-en">
+                      {prod.nameEn || <span className="empty-field">Product Name in English</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Description */}
               {hasDescription && (

@@ -486,12 +486,12 @@ body {
 
 .product-image-section {
   background: #ffffff;
-  border: 1px solid var(--primary);
-  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--primary);
+  border-radius: 28px;
   padding: 24px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
   text-align: center;
-  min-height: 200px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -500,7 +500,7 @@ body {
 
 .product-image-section img {
   max-width: 100%;
-  max-height: 200px;
+  max-height: 260px;
   object-fit: contain;
 }
 
@@ -522,26 +522,30 @@ body {
 /* Product Titles */
 .product-title-ar {
   font-family: var(--font-ar);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 800;
   color: var(--text-primary);
+  background: var(--bg-card);
+  display: inline-block;
+  padding: 0 20px;
   text-align: center;
   line-height: 1.6;
-  margin-bottom: 4px;
+  margin-bottom: 0;
+  border-radius: 8px;
 }
 
 .product-title-en {
   font-family: var(--font-en);
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-on-primary);
   text-align: center;
   background: var(--primary);
   display: inline-block;
-  padding: 4px 18px;
+  padding: 5px 22px;
   border-radius: 20px;
   border: 1px solid var(--primary-light);
-  margin: 0 auto 16px;
+  margin: 0;
 }
 
 .product-title-en-wrapper {
@@ -566,7 +570,7 @@ body {
   direction: ltr;
   padding: 14px;
   background: var(--primary);
-  border-radius: var(--radius-md);
+  border-radius: 24px;
   border: none;
   display: flex;
   align-items: center;
@@ -584,7 +588,7 @@ body {
   direction: rtl;
   padding: 14px;
   background: var(--primary);
-  border-radius: var(--radius-md);
+  border-radius: 24px;
   border: none;
   display: flex;
   flex-direction: column;
@@ -612,21 +616,21 @@ body {
 .detail-label {
   background: var(--primary);
   color: var(--text-on-primary);
-  padding: 8px 16px;
+  padding: 4px 12px;
   font-size: 0.78rem;
   font-weight: 700;
   text-align: center;
   white-space: nowrap;
   border-radius: var(--radius-md);
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   width: 100%;
 }
 
 .detail-value {
-  padding: 8px 16px;
+  padding: 4px 12px;
   text-align: center;
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--text-primary);
   background: var(--bg-section);
   border-radius: var(--radius-md);
@@ -634,7 +638,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
+  min-height: 28px;
 }
 
 .barcode-item {
