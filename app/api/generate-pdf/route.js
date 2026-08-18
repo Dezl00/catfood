@@ -18,7 +18,7 @@ export async function POST(request) {
       const chromium = await import('@sparticuz/chromium-min').then(mod => mod.default || mod);
       puppeteer = await import('puppeteer-core').then(mod => mod.default || mod);
       
-      const packUrl = 'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar';
+      const packUrl = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
       executablePath = await chromium.executablePath(packUrl);
       args = chromium.args;
       headless = chromium.headless;
