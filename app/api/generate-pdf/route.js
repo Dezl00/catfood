@@ -14,6 +14,10 @@ export async function POST(request) {
     let headless = true;
 
     if (process.env.VERCEL || process.env.VERCEL_ENV) {
+      // Force Sparticuz to use AL2023 binaries by mocking the AWS Lambda env var
+      // This fixes the missing libnss3.so error on Vercel Node 20+
+      process.env.AWS_EXECUTION_ENV = 'AWS_Lambda_nodejs20.x';
+      
       // In Vercel, use @sparticuz/chromium-min and fetch the binary at runtime
       const chromium = await import('@sparticuz/chromium-min').then(mod => mod.default || mod);
       puppeteer = await import('puppeteer-core').then(mod => mod.default || mod);
