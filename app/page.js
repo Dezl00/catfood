@@ -242,25 +242,6 @@ export default function Home() {
         </div>
 
         <div className="sidebar-content">
-          {/* Category */}
-          <div className="category-input-group">
-            <label>التصنيف</label>
-            <div className="category-bilingual">
-              <input
-                type="text"
-                placeholder="التصنيف بالعربي"
-                value={categoryAr}
-                onChange={(e) => setCategoryAr(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Category in English"
-                value={categoryEn}
-                onChange={(e) => setCategoryEn(e.target.value)}
-              />
-            </div>
-          </div>
-
           {/* Visibility Toggles */}
           <div className="visibility-section">
             <div className="form-section-title">إظهار / إخفاء الحقول</div>
@@ -547,34 +528,18 @@ export default function Home() {
               {/* Header */}
               <div className="catalog-header">
               <div className="cat-name-ar">
-                {prod.categoryAr || <span className="empty-field">التصنيف</span>}
+                كات فود
               </div>
               <div className="cat-name-en">
-                {prod.categoryEn || <span className="empty-field">CATEGORY</span>}
+                CAT FOOD
               </div>
             </div>
 
             {/* Product Card */}
             <div className="product-card">
               {/* Image and Titles Wrapper */}
-              <div className="image-and-title-wrapper" style={{ position: 'relative', marginBottom: '28px', marginTop: '16px' }}>
+              <div className="image-and-title-wrapper" style={{ position: 'relative', marginBottom: '28px', marginTop: '0px' }}>
                 
-                {/* Product Name AR (Top Edge) */}
-                {visibility.nameAr && (
-                  <div className="product-title-ar-wrapper" style={{
-                    position: 'absolute',
-                    top: '-16px',
-                    left: '0',
-                    right: '0',
-                    textAlign: 'center',
-                    zIndex: 2
-                  }}>
-                    <div className="product-title-ar">
-                      {prod.nameAr || <span className="empty-field">اسم المنتج بالعربي</span>}
-                    </div>
-                  </div>
-                )}
-
                 {/* Image */}
                 {visibility.image && (
                   <div className="product-image-section">
@@ -593,21 +558,33 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Product Name EN (Bottom Edge) */}
-                {visibility.nameEn && (
-                  <div className="product-title-en-wrapper" style={{
-                    position: 'absolute',
-                    bottom: '-14px',
-                    left: '0',
-                    right: '0',
-                    textAlign: 'center',
-                    zIndex: 2
-                  }}>
+                {/* Titles (Bottom Edge) */}
+                <div className="product-titles-wrapper" style={{
+                  position: 'absolute',
+                  bottom: '-14px',
+                  left: '0',
+                  right: '0',
+                  textAlign: 'center',
+                  zIndex: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '2px'
+                }}>
+                  {/* Product Name AR (Inside the frame, above English name) */}
+                  {visibility.nameAr && (
+                    <div className="product-title-ar">
+                      {prod.nameAr || <span className="empty-field">اسم المنتج بالعربي</span>}
+                    </div>
+                  )}
+
+                  {/* Product Name EN (Exactly on bottom edge) */}
+                  {visibility.nameEn && (
                     <div className="product-title-en">
                       {prod.nameEn || <span className="empty-field">Product Name in English</span>}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Description */}
