@@ -43,6 +43,10 @@ export default function Home() {
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [imagePreview, setImagePreview] = useState(null);
   const [bulkProducts, setBulkProducts] = useState([]);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkStep, setBulkStep] = useState(1);
+  const [bulkEditMode, setBulkEditMode] = useState(false);
 
   const catalogRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -158,9 +162,6 @@ export default function Home() {
         return;
       }
 
-      setIsBulkGenerating(true);
-      setBulkProgress({ current: 0, total: rows.length });
-
       const parsedProducts = rows.map((row) => ({
         nameAr: row.nameAr || '',
         nameEn: row.nameEn || '',
@@ -178,19 +179,13 @@ export default function Home() {
       }));
 
       setBulkProducts(parsedProducts);
-
-      // Wait for DOM to render the bulk products and images to hopefully load
-      setTimeout(() => {
-        setIsBulkGenerating(false);
-        setBulkProgress({ current: 0, total: 0 });
-        // Removed auto window.print() so the user can review and click Download Bulk PDF.
-      }, 1000);
+      setBulkStep(1);
+      setBulkEditMode(false);
+      setBulkModalOpen(true);
 
     } catch (err) {
       console.error('Bulk generation error:', err);
-      alert('حدث خطأ أثناء الإنشاء الجماعي');
-      setIsBulkGenerating(false);
-      setBulkProgress({ current: 0, total: 0 });
+      alert('حدث خطأ أثناء قراءة الملف الجماعي');
     } finally {
       if (bulkInputRef.current) bulkInputRef.current.value = '';
     }
@@ -242,22 +237,6 @@ export default function Home() {
         </div>
 
         <div className="sidebar-content">
-          {/* Visibility Toggles */}
-          <div className="visibility-section">
-            <div className="form-section-title">إظهار / إخفاء الحقول</div>
-            <div className="toggle-grid">
-              {FIELD_CONFIG.map(field => (
-                <div
-                  key={field.key}
-                  className={`toggle-item ${visibility[field.key] ? 'active' : ''}`}
-                  onClick={() => toggleVisibility(field.key)}
-                >
-                  <div className="toggle-switch" />
-                  <span className="toggle-label">{field.labelAr}</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
           {/* Product Image */}
           {visibility.image && (
@@ -440,76 +419,135 @@ export default function Home() {
             </div>
           )}
 
-          {/* Footer Text */}
-          <div className="footer-input-group">
-            <label>نص التذييل</label>
-            <input
-              type="text"
-              value={footerText}
-              onChange={(e) => setFooterText(e.target.value)}
-              placeholder="مثال: السعر غير شامل الضريبة"
-            />
+          {/* Advanced Settings */}
+          <div className="advanced-settings-section" style={{ marginTop: '20px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              style={{ width: '100%', justifyContent: 'space-between', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17" />
+                </svg>
+                إعدادات متقدمة
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: showAdvancedSettings ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            {showAdvancedSettings && (
+              <div className="advanced-settings-content" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg-section)', borderRadius: 'var(--radius-md)' }}>
+                {/* Footer Text */}
+                <div className="footer-input-group" style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-secondary)' }}>نص التذييل</label>
+                  <input
+                    type="text"
+                    value={footerText}
+                    onChange={(e) => setFooterText(e.target.value)}
+                    placeholder="مثال: السعر غير شامل الضريبة"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                  />
+                </div>
+
+                {/* Visibility Toggles */}
+                <div className="visibility-section">
+                  <div className="form-section-title" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>إظهار / إخفاء الحقول</div>
+                  <div className="toggle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {FIELD_CONFIG.map(field => (
+                      <div
+                        key={field.key}
+                        className={`toggle-item ${visibility[field.key] ? 'active' : ''}`}
+                        onClick={() => toggleVisibility(field.key)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px', borderRadius: '6px', background: visibility[field.key] ? 'var(--primary)' : 'var(--bg-card)', color: visibility[field.key] ? '#fff' : 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                      >
+                        <div className="toggle-switch" style={{ width: '12px', height: '12px', borderRadius: '50%', background: visibility[field.key] ? '#fff' : 'var(--border-color)' }} />
+                        <span className="toggle-label" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{field.labelAr}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="sidebar-actions">
+        <div className="sidebar-actions" style={{ display: 'flex', gap: '10px', marginTop: 'auto', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+          {/* Export PDF */}
           <button 
             className="btn btn-primary" 
             onClick={handleDownloadPDF} 
-            disabled={isGenerating}
-            style={bulkProducts.length > 0 ? { background: '#2e7d32' } : {}}
+            disabled={isGenerating || bulkProducts.length > 0}
+            title="تصدير PDF (الصفحة الحالية)"
+            style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            {isGenerating ? 'جاري التصدير...' : (bulkProducts.length > 0 ? 'تصدير PDF مجمع' : 'تصدير PDF')}
+            {isGenerating ? (
+              <svg className="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" style={{ animation: 'spin 1s linear infinite' }}>
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            )}
           </button>
-          <button className="btn btn-secondary" onClick={handleReset} disabled={isGenerating}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          
+          {/* Upload Bulk */}
+          <input 
+            type="file" 
+            accept=".xlsx, .xls" 
+            ref={bulkInputRef} 
+            style={{ display: 'none' }} 
+            onChange={handleBulkUpload} 
+          />
+          <button 
+            className="btn btn-primary" 
+            onClick={() => bulkInputRef.current?.click()}
+            title="رفع إكسل جماعي"
+            style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#2e7d32', borderColor: '#2e7d32' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </button>
+
+          {/* Download Template */}
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleDownloadTemplate} 
+            title="تنزيل قالب إكسل"
+            style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </button>
+
+          {/* Reset */}
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleReset} 
+            title="إعادة تعيين"
+            style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#d32f2f' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8" />
               <path d="M21 3v5h-5" />
               <path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16" />
               <path d="M8 16H3v5" />
             </svg>
-            إعادة تعيين
           </button>
-
-          <div className="bulk-actions" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--border-light)' }}>
-            <div className="form-section-title">إنشاء جماعي (Excel)</div>
-            <button className="btn btn-secondary" onClick={handleDownloadTemplate} style={{ marginBottom: '8px' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
-              تنزيل قالب إكسل
-            </button>
-            <input 
-              type="file" 
-              accept=".xlsx, .xls" 
-              ref={bulkInputRef} 
-              style={{ display: 'none' }} 
-              onChange={handleBulkUpload} 
-            />
-            <button 
-              className="btn btn-primary" 
-              onClick={() => bulkInputRef.current?.click()} 
-              disabled={isGenerating || isBulkGenerating}
-              style={{ background: '#2e7d32' }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              رفع وإنشاء ملفات متعددة للطباعة
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -654,6 +692,131 @@ export default function Home() {
           ))}
         </div>
       </main>
+
+      {/* Bulk Upload Wizard Modal */}
+      {bulkModalOpen && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content" style={{ background: 'var(--bg-card)', width: '90vw', height: '90vh', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            
+            {/* Modal Header */}
+            <div className="modal-header" style={{ padding: '20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, color: 'var(--primary)' }}>
+                {bulkStep === 1 ? 'مراجعة وتعديل البيانات' : 'ترتيب وتصدير الصفحات'}
+              </h2>
+              <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-muted)' }}>✕</button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '20px', background: 'var(--bg-page)' }}>
+              {bulkStep === 1 ? (
+                <div className="bulk-table-container" style={{ background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                    <thead style={{ background: 'var(--primary)', color: '#fff' }}>
+                      <tr>
+                        <th style={{ padding: '12px', borderBottom: '1px solid var(--border-light)' }}>الاسم (ع)</th>
+                        <th style={{ padding: '12px', borderBottom: '1px solid var(--border-light)' }}>الاسم (E)</th>
+                        <th style={{ padding: '12px', borderBottom: '1px solid var(--border-light)' }}>الباركود</th>
+                        <th style={{ padding: '12px', borderBottom: '1px solid var(--border-light)' }}>السعر</th>
+                        <th style={{ padding: '12px', borderBottom: '1px solid var(--border-light)' }}>إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkProducts.map((p, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                          <td style={{ padding: '12px' }}>
+                            {bulkEditMode ? <input type="text" value={p.nameAr} onChange={e => {
+                                const newP = [...bulkProducts];
+                                newP[i].nameAr = e.target.value;
+                                setBulkProducts(newP);
+                            }} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px' }} /> : p.nameAr}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            {bulkEditMode ? <input type="text" value={p.nameEn} onChange={e => {
+                                const newP = [...bulkProducts];
+                                newP[i].nameEn = e.target.value;
+                                setBulkProducts(newP);
+                            }} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px' }} /> : p.nameEn}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            {bulkEditMode ? <input type="text" value={p.barcode} onChange={e => {
+                                const newP = [...bulkProducts];
+                                newP[i].barcode = e.target.value;
+                                setBulkProducts(newP);
+                            }} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px' }} /> : p.barcode}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            {bulkEditMode ? <input type="text" value={p.pricePerPiece} onChange={e => {
+                                const newP = [...bulkProducts];
+                                newP[i].pricePerPiece = e.target.value;
+                                setBulkProducts(newP);
+                            }} style={{ width: '100%', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px' }} /> : p.pricePerPiece}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <button onClick={() => {
+                                const newP = bulkProducts.filter((_, idx) => idx !== i);
+                                setBulkProducts(newP);
+                            }} style={{ background: '#d32f2f', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>حذف</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="bulk-pages-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px' }}>
+                  {bulkProducts.map((p, i) => (
+                    <div 
+                      key={i} 
+                      draggable 
+                      onDragStart={(e) => e.dataTransfer.setData('pageIndex', i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                          e.preventDefault();
+                          const sourceIndex = parseInt(e.dataTransfer.getData('pageIndex'), 10);
+                          if (sourceIndex === i || isNaN(sourceIndex)) return;
+                          const newArr = [...bulkProducts];
+                          const [moved] = newArr.splice(sourceIndex, 1);
+                          newArr.splice(i, 0, moved);
+                          setBulkProducts(newArr);
+                      }}
+                      style={{ background: '#fff', border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '20px 10px', textAlign: 'center', cursor: 'grab', transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                    >
+                      <div style={{ fontSize: '32px', marginBottom: '12px' }}>📄</div>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nameAr || 'بدون اسم'}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>صفحة {i + 1}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="modal-footer" style={{ padding: '20px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-card)' }}>
+              {bulkStep === 1 ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setBulkEditMode(!bulkEditMode)}>
+                    {bulkEditMode ? 'إغلاق التعديل المباشر' : 'تعديل جماعي'}
+                  </button>
+                  <button className="btn btn-primary" onClick={() => setBulkStep(2)} disabled={bulkProducts.length === 0}>
+                    تأكيد ومتابعة للصفحات
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setBulkStep(1)}>
+                    رجوع للبيانات
+                  </button>
+                  <button className="btn btn-primary" onClick={() => { setBulkModalOpen(false); handleDownloadPDF(); }} disabled={isGenerating}>
+                    {isGenerating ? 'جاري التصدير...' : 'تصدير PDF النهائي'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {(isGenerating || isBulkGenerating) && (
