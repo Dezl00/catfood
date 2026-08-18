@@ -54,6 +54,11 @@ export async function POST(request) {
     ${css}
     
     /* Override for PDF rendering */
+    @page {
+      size: A4;
+      margin: 0;
+    }
+    
     *, *::before, *::after {
       margin: 0;
       padding: 0;
@@ -67,16 +72,20 @@ export async function POST(request) {
     }
     
     .catalog-page {
-      width: 595px;
-      min-height: 842px;
-      box-shadow: none;
-      border-radius: 0;
+      width: 210mm !important;
+      height: 297mm !important;
+      max-width: none !important;
+      min-height: 297mm !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
       page-break-after: always;
-      margin: 0;
+      margin: 0 !important;
+      padding: 0;
+      overflow: hidden;
     }
     
     .catalog-page:last-child {
-      page-break-after: avoid;
+      page-break-after: auto;
     }
   </style>
 </head>
@@ -97,7 +106,7 @@ export async function POST(request) {
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      preferCSSPageSize: false,
+      preferCSSPageSize: true,
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
     
