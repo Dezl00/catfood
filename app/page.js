@@ -75,24 +75,38 @@ export default function Home() {
   }, []);
 
   const handleDownloadPDF = useCallback(async () => {
+    if (!catalogRef.current) return;
     setIsGenerating(true);
 
     try {
-      const { pdf } = await import('@react-pdf/renderer');
-      const PdfDocument = (await import('./components/PdfDocument')).default;
+      // Grab the exact HTML as rendered in preview
+      const html = catalogRef.current.innerHTML;
+      
+      // Fetch the CSS from the page stylesheets
+      let css = '';
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules) {
+            css += rule.cssText + '\n';
+          }
+        } catch (e) {
+          // Skip cross-origin stylesheets
+        }
+      }
+
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html, css }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Server error');
+      }
+
+      const blob = await response.blob();
       const { saveAs } = await import('file-saver');
-
-      const productsToRender = bulkProducts.length > 0 ? bulkProducts : [product];
-      const visibleTableFields = tableFields.filter(f => visibility[f.key]);
-
-      const doc = <PdfDocument 
-        productsToRender={productsToRender}
-        visibility={visibility}
-        footerText={footerText}
-        visibleTableFields={visibleTableFields}
-      />;
-
-      const blob = await pdf(doc).toBlob();
       
       const fileName = bulkProducts.length > 0 
         ? 'catalog-bulk.pdf' 
@@ -101,11 +115,11 @@ export default function Home() {
       saveAs(blob, fileName);
     } catch (err) {
       console.error('PDF generation error:', err);
-      alert('حدث خطأ أثناء إنشاء ملف PDF');
+      alert('حدث خطأ أثناء إنشاء ملف PDF: ' + err.message);
     } finally {
       setIsGenerating(false);
     }
-  }, [product, bulkProducts, visibility, footerText]);
+  }, [product.nameEn, bulkProducts]);
 
   const handleDownloadTemplate = useCallback(() => {
     Promise.all([import('xlsx'), import('file-saver')]).then(([XLSX, FileSaver]) => {
