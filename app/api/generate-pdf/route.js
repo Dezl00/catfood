@@ -15,15 +15,15 @@ export async function POST(request) {
 
     if (process.env.VERCEL || process.env.VERCEL_ENV) {
       // In Vercel, use @sparticuz/chromium
-      const chromium = require('@sparticuz/chromium');
-      puppeteer = require('puppeteer-core');
+      const chromium = await import('@sparticuz/chromium').then(mod => mod.default || mod);
+      puppeteer = await import('puppeteer-core').then(mod => mod.default || mod);
       
       executablePath = await chromium.executablePath();
       args = chromium.args;
       headless = chromium.headless;
     } else {
       // Local development
-      puppeteer = require('puppeteer');
+      puppeteer = await import('puppeteer').then(mod => mod.default || mod);
       args = ['--no-sandbox', '--disable-setuid-sandbox'];
       headless = 'new';
     }
