@@ -75,55 +75,37 @@ export default function Home() {
   }, []);
 
   const handleDownloadPDF = useCallback(async () => {
-    if (!catalogRef.current) return;
     setIsGenerating(true);
 
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
+      const { pdf } = await import('@react-pdf/renderer');
+      const PdfDocument = (await import('./components/PdfDocument')).default;
+      const { saveAs } = await import('file-saver');
 
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const productsToRender = bulkProducts.length > 0 ? bulkProducts : [product];
+      const visibleTableFields = TABLE_FIELDS.filter(f => visibility[f.key]);
 
-      const pages = catalogRef.current.querySelectorAll('.catalog-page');
+      const doc = <PdfDocument 
+        productsToRender={productsToRender}
+        visibility={visibility}
+        footerText={footerText}
+        visibleTableFields={visibleTableFields}
+      />;
+
+      const blob = await pdf(doc).toBlob();
       
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i];
-        const canvas = await html2canvas(page, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-        const x = (pdfWidth - imgWidth * ratio) / 2;
-        const y = 0;
-
-        if (i > 0) {
-          pdf.addPage();
-        }
-        
-        pdf.addImage(imgData, 'JPEG', x, y, imgWidth * ratio, imgHeight * ratio, undefined, 'FAST');
-      }
-
       const fileName = bulkProducts.length > 0 
         ? 'catalog-bulk.pdf' 
         : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf` : 'product-catalog.pdf');
         
-      pdf.save(fileName);
+      saveAs(blob, fileName);
     } catch (err) {
       console.error('PDF generation error:', err);
       alert('حدث خطأ أثناء إنشاء ملف PDF');
     } finally {
       setIsGenerating(false);
     }
-  }, [product.nameEn, bulkProducts]);
+  }, [product, bulkProducts, visibility, footerText]);
 
   const handleDownloadTemplate = useCallback(() => {
     Promise.all([import('xlsx'), import('file-saver')]).then(([XLSX, FileSaver]) => {
