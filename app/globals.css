@@ -617,7 +617,7 @@ body {
   background: var(--primary);
   color: var(--text-on-primary);
   padding: 4px 12px;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 700;
   text-align: center;
   white-space: nowrap;
@@ -629,8 +629,8 @@ body {
 .detail-value {
   padding: 0 14px;
   text-align: center;
-  font-size: 1.35rem;
-  font-weight: 800;
+  font-size: 1.1rem;
+  font-weight: 600;
   color: var(--text-primary);
   background: var(--bg-section);
   border-radius: var(--radius-md);
@@ -647,8 +647,8 @@ body {
 
 .barcode-value {
   font-family: var(--font-en);
-  font-size: 1.45rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 500;
   letter-spacing: 2px;
 }
 

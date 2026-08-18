@@ -538,7 +538,7 @@ export default function Home() {
             {/* Product Card */}
             <div className="product-card">
               {/* Image and Titles Wrapper */}
-              <div className="image-and-title-wrapper" style={{ position: 'relative', marginBottom: '28px', marginTop: '0px' }}>
+              <div className="image-and-title-wrapper" style={{ position: 'relative', marginBottom: '56px', marginTop: '0px' }}>
                 
                 {/* Image */}
                 {visibility.image && (
