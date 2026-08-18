@@ -74,17 +74,55 @@ export default function Home() {
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const handleDownloadPDF = useCallback(() => {
+  const handleDownloadPDF = useCallback(async () => {
     if (!catalogRef.current) return;
+    setIsGenerating(true);
 
-    const originalTitle = document.title;
-    const fileName = bulkProducts.length > 0 
-      ? 'catalog-bulk' 
-      : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}` : 'product-catalog');
-    
-    document.title = fileName;
-    window.print();
-    document.title = originalTitle;
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const pages = catalogRef.current.querySelectorAll('.catalog-page');
+      
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        const canvas = await html2canvas(page, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+        const x = (pdfWidth - imgWidth * ratio) / 2;
+        const y = 0;
+
+        if (i > 0) {
+          pdf.addPage();
+        }
+        
+        pdf.addImage(imgData, 'JPEG', x, y, imgWidth * ratio, imgHeight * ratio, undefined, 'FAST');
+      }
+
+      const fileName = bulkProducts.length > 0 
+        ? 'catalog-bulk.pdf' 
+        : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}.pdf` : 'product-catalog.pdf');
+        
+      pdf.save(fileName);
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      alert('حدث خطأ أثناء إنشاء ملف PDF');
+    } finally {
+      setIsGenerating(false);
+    }
   }, [product.nameEn, bulkProducts]);
 
   const handleDownloadTemplate = useCallback(() => {
