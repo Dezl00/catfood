@@ -754,18 +754,35 @@ body {
 
 /* ===== PRINT STYLES (for PDF) ===== */
 @media print {
-  .sidebar, .sidebar-actions {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body {
+    background: white;
+  }
+  
+  .app-wrapper {
+    display: block;
+    min-height: auto;
+  }
+
+  .sidebar, .sidebar-actions, .loading-overlay {
     display: none !important;
   }
   
   .main-content {
     padding: 0;
+    display: block;
   }
   
   .catalog-page {
     box-shadow: none;
     border-radius: 0;
     width: 100%;
+    margin: 0 !important;
+    page-break-inside: avoid;
   }
 }
 

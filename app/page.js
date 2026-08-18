@@ -76,20 +76,15 @@ export default function Home() {
 
   const handleDownloadPDF = useCallback(() => {
     if (!catalogRef.current) return;
-    setIsGenerating(true);
 
-    setTimeout(() => {
-      const originalTitle = document.title;
-      const fileName = bulkProducts.length > 0 
-        ? 'catalog-bulk' 
-        : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}` : 'product-catalog');
-      
-      document.title = fileName;
-      window.print();
-      document.title = originalTitle;
-      
-      setIsGenerating(false);
-    }, 500);
+    const originalTitle = document.title;
+    const fileName = bulkProducts.length > 0 
+      ? 'catalog-bulk' 
+      : (product.nameEn ? `catalog-${product.nameEn.replace(/\s+/g, '-').toLowerCase()}` : 'product-catalog');
+    
+    document.title = fileName;
+    window.print();
+    document.title = originalTitle;
   }, [product.nameEn, bulkProducts]);
 
   const handleDownloadTemplate = useCallback(() => {
