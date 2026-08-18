@@ -83,7 +83,7 @@ export default function Home() {
       const { saveAs } = await import('file-saver');
 
       const productsToRender = bulkProducts.length > 0 ? bulkProducts : [product];
-      const visibleTableFields = TABLE_FIELDS.filter(f => visibility[f.key]);
+      const visibleTableFields = tableFields.filter(f => visibility[f.key]);
 
       const doc = <PdfDocument 
         productsToRender={productsToRender}
