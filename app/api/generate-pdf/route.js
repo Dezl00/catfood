@@ -1,15 +1,37 @@
-import puppeteer from 'puppeteer';
 import { NextResponse } from 'next/server';
+
+export const maxDuration = 60; // Max duration for Vercel Hobby
 
 export async function POST(request) {
   let browser = null;
   
   try {
-    const { html, css, pageCount } = await request.json();
+    const { html, css } = await request.json();
+    
+    let puppeteer;
+    let executablePath = null;
+    let args = [];
+    let headless = true;
+
+    if (process.env.VERCEL) {
+      // In Vercel, use @sparticuz/chromium
+      const chromium = (await import('@sparticuz/chromium')).default;
+      puppeteer = (await import('puppeteer-core')).default;
+      
+      executablePath = await chromium.executablePath();
+      args = chromium.args;
+      headless = chromium.headless;
+    } else {
+      // Local development
+      puppeteer = (await import('puppeteer')).default;
+      args = ['--no-sandbox', '--disable-setuid-sandbox'];
+      headless = 'new';
+    }
     
     browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      args: args,
+      executablePath: executablePath || undefined,
+      headless: headless,
     });
     
     const page = await browser.newPage();
