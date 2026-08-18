@@ -616,8 +616,8 @@ body {
 .detail-label {
   background: var(--primary);
   color: var(--text-on-primary);
-  padding: 2px 10px;
-  font-size: 0.75rem;
+  padding: 4px 12px;
+  font-size: 0.95rem;
   font-weight: 700;
   text-align: center;
   white-space: nowrap;
@@ -627,9 +627,9 @@ body {
 }
 
 .detail-value {
-  padding: 0 10px;
+  padding: 0 14px;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--text-primary);
   background: var(--bg-section);
@@ -638,7 +638,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 34px;
+  height: 44px;
 }
 
 .barcode-item {
@@ -647,7 +647,7 @@ body {
 
 .barcode-value {
   font-family: var(--font-en);
-  font-size: 1.2rem;
+  font-size: 1.45rem;
   font-weight: 700;
   letter-spacing: 2px;
 }
