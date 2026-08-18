@@ -43,7 +43,6 @@ function SortablePageCard({ id, product, index, onDelete, onEdit, onImageDrop })
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </button>
       </div>
-  const [editingPageIndex, setEditingPageIndex] = useState(null);
       <div style={{ alignSelf: 'center', margin: '8px 0', pointerEvents: 'none' }}>
         {product.imagePreview ? (
           <img src={product.imagePreview} alt="Preview" style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '4px' }} />
@@ -101,6 +100,7 @@ export default function Home() {
   const [imagePreview, setImagePreview] = useState(null);
   const [bulkProducts, setBulkProducts] = useState([]);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [editingPageIndex, setEditingPageIndex] = useState(null);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkStep, setBulkStep] = useState(1);
   const [bulkEditMode, setBulkEditMode] = useState(false);
@@ -557,31 +557,38 @@ export default function Home() {
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </button>
-
+            <div className={`advanced-settings-content ${showAdvancedSettings ? 'show' : ''}`}>
+              <div className="form-section">
+                <div className="form-section-title">نص التذييل</div>
+                <div className="form-group">
+                  <input
+                    type="text"
+                    value={footerText}
+                    onChange={(e) => setFooterText(e.target.value)}
                     placeholder="مثال: السعر غير شامل الضريبة"
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
                   />
                 </div>
+              </div>
 
-                {/* Visibility Toggles */}
-                <div className="visibility-section">
-                  <div className="form-section-title" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>إظهار / إخفاء الحقول</div>
-                  <div className="toggle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    {FIELD_CONFIG.map(field => (
-                      <div
-                        key={field.key}
-                        className={`toggle-item ${visibility[field.key] ? 'active' : ''}`}
-                        onClick={() => toggleVisibility(field.key)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px', borderRadius: '6px', background: visibility[field.key] ? 'var(--primary)' : 'var(--bg-card)', color: visibility[field.key] ? '#fff' : 'var(--text-primary)', border: '1px solid var(--border-color)' }}
-                      >
-                        <div className="toggle-switch" style={{ width: '12px', height: '12px', borderRadius: '50%', background: visibility[field.key] ? '#fff' : 'var(--border-color)' }} />
-                        <span className="toggle-label" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{field.labelAr}</span>
-                      </div>
-                    ))}
-                  </div>
+              {/* Visibility Toggles */}
+              <div className="visibility-section">
+                <div className="form-section-title" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>إظهار / إخفاء الحقول</div>
+                <div className="toggle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {FIELD_CONFIG.map(field => (
+                    <div
+                      key={field.key}
+                      className={`toggle-item ${visibility[field.key] ? 'active' : ''}`}
+                      onClick={() => toggleVisibility(field.key)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px', borderRadius: '6px', background: visibility[field.key] ? 'var(--primary)' : 'var(--bg-card)', color: visibility[field.key] ? '#fff' : 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                    >
+                      <div className="toggle-switch" style={{ width: '12px', height: '12px', borderRadius: '50%', background: visibility[field.key] ? '#fff' : 'var(--border-color)' }} />
+                      <span className="toggle-label" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{field.labelAr}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
