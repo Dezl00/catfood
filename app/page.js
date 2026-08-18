@@ -21,15 +21,17 @@ function SortablePageCard({ id, product, index, onDelete, onEdit, onImageDrop })
 
   const handleDrop = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onImageDrop(e.dataTransfer.files[0], index);
+      onImageDrop(e.dataTransfer.files[0], id);
     }
   };
 
   return (
     <div 
       ref={setNodeRef} 
-      style={{ ...style, background: '#fff', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'grab' }}
+      className="page-card"
+      style={{ ...style, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'grab' }}
       {...attributes} 
       {...listeners}
       onDragOver={handleDragOver}
@@ -299,11 +301,13 @@ export default function Home() {
     }
   }, []);
 
-  const handleGridImageDrop = useCallback((file, index) => {
+  const handleGridImageDrop = useCallback((file, id) => {
     if (file) {
       const reader = new FileReader();
       reader.onload = (ev) => {
         setBulkProducts(prev => {
+          const index = prev.findIndex(p => p._id === id);
+          if (index === -1) return prev;
           const newProducts = [...prev];
           newProducts[index].imagePreview = ev.target.result;
           newProducts[index].image = file;
@@ -574,16 +578,15 @@ export default function Home() {
               {/* Visibility Toggles */}
               <div className="visibility-section">
                 <div className="form-section-title" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>إظهار / إخفاء الحقول</div>
-                <div className="toggle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="toggle-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                   {FIELD_CONFIG.map(field => (
                     <div
                       key={field.key}
                       className={`toggle-item ${visibility[field.key] ? 'active' : ''}`}
                       onClick={() => toggleVisibility(field.key)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px', borderRadius: '6px', background: visibility[field.key] ? 'var(--primary)' : 'var(--bg-card)', color: visibility[field.key] ? '#fff' : 'var(--text-primary)', border: '1px solid var(--border-color)' }}
                     >
-                      <div className="toggle-switch" style={{ width: '12px', height: '12px', borderRadius: '50%', background: visibility[field.key] ? '#fff' : 'var(--border-color)' }} />
-                      <span className="toggle-label" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{field.labelAr}</span>
+                      <div className="toggle-switch" />
+                      <span className="toggle-label">{field.labelAr}</span>
                     </div>
                   ))}
                 </div>

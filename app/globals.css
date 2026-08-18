@@ -100,7 +100,12 @@ body {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 16px;
+}
+.form-grid-wide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 16px;
 }
 
@@ -907,5 +912,47 @@ body {
 /* Modal Form Overrides */
 .modal-body form .form-grid {
   grid-template-columns: 1fr 1fr;
+}
+
+
+/* ===== VISIBILITY TOGGLES ===== */
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.toggle-item:hover {
+  background: var(--bg-page);
+}
+
+.toggle-item.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.toggle-switch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border-color);
+  transition: background 0.2s ease;
+}
+
+.toggle-item.active .toggle-switch {
+  background: #ffffff;
+}
+
+.toggle-label {
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
