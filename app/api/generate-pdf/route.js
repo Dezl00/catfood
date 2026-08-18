@@ -13,17 +13,17 @@ export async function POST(request) {
     let args = [];
     let headless = true;
 
-    if (process.env.VERCEL) {
+    if (process.env.VERCEL || process.env.VERCEL_ENV) {
       // In Vercel, use @sparticuz/chromium
-      const chromium = (await import('@sparticuz/chromium')).default;
-      puppeteer = (await import('puppeteer-core')).default;
+      const chromium = require('@sparticuz/chromium');
+      puppeteer = require('puppeteer-core');
       
       executablePath = await chromium.executablePath();
       args = chromium.args;
       headless = chromium.headless;
     } else {
       // Local development
-      puppeteer = (await import('puppeteer')).default;
+      puppeteer = require('puppeteer');
       args = ['--no-sandbox', '--disable-setuid-sandbox'];
       headless = 'new';
     }
