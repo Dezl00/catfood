@@ -3,16 +3,16 @@ import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/
 
 // Register font
 Font.register({
-  family: 'Cairo',
+  family: 'Arial',
   fonts: [
-    { src: '/fonts/Cairo-Regular.ttf', fontWeight: 'normal' },
-    { src: '/fonts/Cairo-Bold.ttf', fontWeight: 'bold' }
+    { src: '/fonts/arial.ttf', fontWeight: 'normal' },
+    { src: '/fonts/arialbd.ttf', fontWeight: 'bold' }
   ]
 });
 
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Cairo',
+    fontFamily: 'Arial',
     backgroundColor: '#ffffff',
     width: '100%',
     height: '100%',
