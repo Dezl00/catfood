@@ -14,11 +14,12 @@ export async function POST(request) {
     let headless = true;
 
     if (process.env.VERCEL || process.env.VERCEL_ENV) {
-      // In Vercel, use @sparticuz/chromium
-      const chromium = await import('@sparticuz/chromium').then(mod => mod.default || mod);
+      // In Vercel, use @sparticuz/chromium-min and fetch the binary at runtime
+      const chromium = await import('@sparticuz/chromium-min').then(mod => mod.default || mod);
       puppeteer = await import('puppeteer-core').then(mod => mod.default || mod);
       
-      executablePath = await chromium.executablePath();
+      const packUrl = 'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar';
+      executablePath = await chromium.executablePath(packUrl);
       args = chromium.args;
       headless = chromium.headless;
     } else {
