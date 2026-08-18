@@ -619,7 +619,12 @@ export default function Home() {
                       <div className="detail-value">
                         {f.key === 'weight'
                           ? (prod.weight
-                            ? `${prod.weight}${visibility.unit && prod.unit ? ' ' + prod.unit : ''}`
+                            ? (
+                                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px', justifyContent: 'center', direction: 'rtl' }}>
+                                  {visibility.unit && prod.unit && <span>{prod.unit}</span>}
+                                  <span dir="ltr">{prod.weight}</span>
+                                </div>
+                              )
                             : <span className="empty-field">-</span>)
                           : (prod[f.key] || <span className="empty-field">-</span>)
                         }
