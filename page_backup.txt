@@ -333,46 +333,22 @@ export default function Home() {
     setEditingPageIndex(null);
   };
 
-    <div className="app-wrapper" dir="rtl" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-page)' }}>
-      
-      {/* Navigation Sidebar */}
-      <aside style={{ width: '250px', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', zIndex: 20 }}>
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: 'var(--primary)', fontSize: '1.1rem' }}>
-          أداة كتالوج المنتجات
+  return (
+    <div className="app-wrapper">
+      {/* Sidebar - Form Controls */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <h2>
+            <span className="icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </span>
+            أداة كتالوج المنتجات
+          </h2>
         </div>
-        <nav style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700, border: 'none', cursor: 'pointer', textAlign: 'right' }}>إنشاء منتج</button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, border: 'none', cursor: 'pointer', textAlign: 'right' }}>استيراد المنتجات</button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, border: 'none', cursor: 'pointer', textAlign: 'right' }}>منتجاتي</button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, border: 'none', cursor: 'pointer', textAlign: 'right' }}>القوالب</button>
-        </nav>
-      </aside>
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Top Header */}
-        <header style={{ height: '70px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 15 }}>
-          <h1 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>إنشاء منتج</h1>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="btn-secondary" style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'transparent', cursor: 'pointer' }}>حفظ كمسودة</button>
-          </div>
-        </header>
-
-        {/* Workspace: Form + Preview */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* Sidebar - Form Controls */}
-          <aside className="sidebar" style={{ width: '450px', minWidth: '450px', overflowY: 'auto' }}>
-            <div className="sidebar-header" style={{ display: 'none' }}>
-              <h2>
-                <span className="icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                  </svg>
-                </span>
-                أداة كتالوج المنتجات
-              </h2>
-            </div>
 
         <div className="sidebar-content">
 
@@ -1026,8 +1002,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
-      </div>
     </div>
   );
 }

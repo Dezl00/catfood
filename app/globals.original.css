@@ -9,30 +9,30 @@
 
 :root {
   /* Brand Colors */
-  --primary: #2563EB;
-  --primary-dark: #1D4ED8;
-  --primary-light: #eff6ff;
-  --accent: #2563EB;
-  --bg-page: #F7F8FA;
-  --bg-card: #FFFFFF;
-  --bg-muted: #F1F3F5;
-  --bg-section: #FFFFFF;
-  --text-primary: #172033;
-  --text-secondary: #667085;
-  --text-muted: #9CA3AF;
+  --primary: #1a4a6e;
+  --primary-dark: #0f3351;
+  --primary-light: #2a6a9e;
+  --accent: #d4a84b;
+  --bg-page: #f5f6fa;
+  --bg-card: #ffffff;
+  --bg-muted: #eef2f7;
+  --bg-section: #f0f4f8;
+  --text-primary: #1a2332;
+  --text-secondary: #4a5568;
+  --text-muted: #8896a6;
   --text-on-primary: #ffffff;
-  --border-color: #E4E7EC;
-  --border-light: #F3F4F6;
+  --border-color: #dce3eb;
+  --border-light: #e8edf3;
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: none;
   --shadow-card: none;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --font-ar: 'Tajawal', 'Segoe UI', sans-serif;
+  --font-ar: 'Cairo', 'Segoe UI', sans-serif;
   --font-en: 'Inter', 'Segoe UI', sans-serif;
 }
 
@@ -156,7 +156,7 @@ body {
 .form-group textarea:focus,
 .form-group select:focus {
   border-color: var(--primary-light);
-  
+  box-shadow: 0 0 0 3px rgba(26, 74, 110, 0.08);
 }
 
 .form-group textarea {
@@ -292,7 +292,7 @@ body {
   border-radius: 50%;
   background: white;
   transition: transform var(--transition);
-  
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 .toggle-item.active .toggle-switch {
@@ -355,7 +355,7 @@ body {
 
 .category-bilingual input:focus {
   border-color: var(--primary-light);
-  
+  box-shadow: 0 0 0 3px rgba(26, 74, 110, 0.08);
 }
 
 /* ===== ACTION BUTTONS ===== */
@@ -364,70 +364,21 @@ body {
   border-top: 1px solid var(--border-light);
   background: var(--bg-card);
 }
-/* ===== COMPONENTS ===== */
-.form-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  margin-bottom: 24px;
-}
 
-.form-section-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 20px;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-label {
-  display: block;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-.form-control {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-size: 0.95rem;
-  font-family: inherit;
-  color: var(--text-primary);
-  background: var(--bg-page);
-  transition: var(--transition);
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: var(--primary);
-  background: var(--bg-card);
-}
-
-textarea.form-control {
-  min-height: 100px;
-  resize: vertical;
-}
-
-/* ===== BUTTONS ===== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: var(--transition);
+  padding: 11px 20px;
   border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ar);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  width: 100%;
 }
 
 .btn-primary {
@@ -437,6 +388,13 @@ textarea.form-control {
 
 .btn-primary:hover {
   background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
 
 .btn-primary svg {
   width: 18px;
@@ -470,7 +428,7 @@ textarea.form-control {
   width: 595px;
   min-height: 842px;
   background: var(--bg-card);
-  
+  box-shadow: var(--shadow-lg);
   border-radius: 4px;
   overflow: hidden;
   position: relative;
@@ -723,7 +681,7 @@ textarea.form-control {
   background: var(--bg-card);
   padding: 40px 60px;
   border-radius: var(--radius-xl);
-  
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
   text-align: center;
   border: 1px solid var(--border-light);
   max-width: 400px;
@@ -821,7 +779,7 @@ textarea.form-control {
   }
   
   .catalog-page {
-    
+    box-shadow: none;
     border-radius: 0;
     width: 100%;
     margin: 0 !important;
@@ -883,7 +841,7 @@ textarea.form-control {
 
 .footer-input-group input:focus {
   border-color: var(--primary-light);
-  
+  box-shadow: 0 0 0 3px rgba(26, 74, 110, 0.08);
 }
 
 /* ===== ADVANCED SETTINGS ACCORDION ===== */
