@@ -437,6 +437,7 @@ textarea.form-control {
 
 .btn-primary:hover {
   background: var(--primary-dark);
+}
 
 .btn-primary svg {
   width: 18px;

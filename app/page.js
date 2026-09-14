@@ -333,6 +333,7 @@ export default function Home() {
     setEditingPageIndex(null);
   };
 
+  return (
     <div className="app-wrapper" dir="rtl" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-page)' }}>
       
       {/* Navigation Sidebar */}
