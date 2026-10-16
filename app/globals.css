@@ -2244,11 +2244,54 @@ h1, h2, h3, p {
 }
 
 @media print {
-  .pdf-stage {
-    position: static;
-    width: auto;
+  @page {
+    size: 595.28pt 841.89pt;
+    margin: 0 !important;
   }
-  .studio-shell {
-    display: none;
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #FEFDFA !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif !important;
+  }
+  .studio-shell, .toast, .modal-backdrop, .sidebar-backdrop {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  .pdf-stage {
+    position: static !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 595.28pt !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    display: block !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+  .pdf-stage .catfood-page {
+    width: 595.28pt !important;
+    height: 841.89pt !important;
+    max-width: 595.28pt !important;
+    min-height: 841.89pt !important;
+    max-height: 841.89pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+    position: relative !important;
+    background: #FEFDFA !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .pdf-stage .catfood-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 }
+
