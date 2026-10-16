@@ -581,6 +581,236 @@ function variantsFromRow(row) {
   }];
 }
 
+const MAPPABLE_FIELDS = [
+  { key: 'nameAr', label: 'الاسم بالعربي', required: true, hint: 'الاسم العربي الأساسي لصفحة المنتج' },
+  { key: 'nameEn', label: 'الاسم بالإنجليزي', required: false, hint: 'الاسم الإنجليزي في الشارة المستطيلة' },
+  { key: 'pricePerPiece', label: 'سعر الحبة', required: false, hint: 'سعر القطعة الفردية في الجدول' },
+  { key: 'pricePerCarton', label: 'سعر الكرتون', required: false, hint: 'سعر كرتون المنتج في الجدول' },
+  { key: 'qtyPerCarton', label: 'العدد في الكرتون', required: false, hint: 'عدد الحبات المعبأة بالكرتون' },
+  { key: 'weight', label: 'الوزن / الحجم', required: false, hint: 'الوزن أو السعة (مثل: 5 أو 400)' },
+  { key: 'unit', label: 'وحدة الوزن (Unit)', required: false, hint: 'الوحدة (g, kg, L, ml, pcs)' },
+  { key: 'barcode', label: 'الباركود (Barcode)', required: false, hint: 'رقم الباركود أو رمز الصنف' },
+  { key: 'categoryAr', label: 'التصنيف (عربي)', required: false, hint: 'تصنيف المنتج (دراي فود، رمل...)' },
+  { key: 'descriptionAr', label: 'الوصف بالعربي', required: false, hint: 'النص في الصندوق الأيمن' },
+  { key: 'descriptionEn', label: 'الوصف بالإنجليزي', required: false, hint: 'النص في الصندوق الأيسر' },
+  { key: 'imageUrl', label: 'رابط الصورة', required: false, hint: 'رابط مباشر لصورة المنتج (اختياري)' },
+];
+
+function extractUnitFromWeight(str) {
+  if (!str) return '';
+  const s = String(str).toLowerCase();
+  if (s.includes('kg') || s.includes('كغ') || s.includes('كيلو')) return 'kg';
+  if (s.includes('ml') || s.includes('مل')) return 'ml';
+  if (s.includes('l') || s.includes('لتر')) return 'L';
+  if (s.includes('pcs') || s.includes('حبة') || s.includes('قطع')) return 'pcs';
+  if (s.includes('oz') || s.includes('أونصة')) return 'oz';
+  if (s.includes('lb') || s.includes('باوند')) return 'lb';
+  if (s.includes('g') || s.includes('جرام') || s.includes('جم')) return 'g';
+  return '';
+}
+
+function autoDetectMapping(headers) {
+  const mapping = {};
+  for (const f of MAPPABLE_FIELDS) mapping[f.key] = '';
+
+  for (const rawHeader of headers) {
+    const raw = String(rawHeader || '').trim();
+    if (!raw) continue;
+    const clean = raw.toLowerCase().replace(/[\s_\-]+/g, '');
+
+    if (!mapping.nameAr && (
+      (clean.includes('عرب') && clean.includes('اسم')) ||
+      clean.includes('namear') ||
+      clean.includes('arabicname') ||
+      clean === 'اسم' ||
+      clean === 'الاسم' ||
+      clean === 'اسمالمنتج' ||
+      clean === 'المنتج' ||
+      clean === 'اسم_المنتج'
+    )) {
+      mapping.nameAr = raw;
+      continue;
+    }
+
+    if (!mapping.nameEn && (
+      clean.includes('انجليز') ||
+      clean.includes('إنجليز') ||
+      clean.includes('nameen') ||
+      clean.includes('englishname') ||
+      clean === 'itemname' ||
+      clean === 'english' ||
+      clean === 'ename' ||
+      clean === 'name'
+    )) {
+      mapping.nameEn = raw;
+      continue;
+    }
+
+    if (!mapping.pricePerPiece && (
+      clean.includes('سعرالحبة') ||
+      clean.includes('سعرحبة') ||
+      clean.includes('سعرالقطعة') ||
+      clean.includes('سعرقطعة') ||
+      clean.includes('priceperpiece') ||
+      clean.includes('pieceprice') ||
+      clean.includes('unitprice') ||
+      clean === 'سعر' ||
+      clean === 'السعر' ||
+      clean === 'price'
+    )) {
+      mapping.pricePerPiece = raw;
+      continue;
+    }
+
+    if (!mapping.pricePerCarton && (
+      clean.includes('سعرالكرتون') ||
+      clean.includes('سعركرتون') ||
+      clean.includes('cartonprice') ||
+      clean.includes('boxprice') ||
+      clean.includes('pricepercarton')
+    )) {
+      mapping.pricePerCarton = raw;
+      continue;
+    }
+
+    if (!mapping.qtyPerCarton && (
+      clean.includes('عددالكرتون') ||
+      clean.includes('عددبالكرتون') ||
+      clean.includes('كميةالكرتون') ||
+      clean.includes('qtypercarton') ||
+      clean.includes('quantitypercarton') ||
+      clean.includes('pcspercarton') ||
+      clean.includes('كرتون') ||
+      clean === 'عدد' ||
+      clean === 'العدد' ||
+      clean === 'الكمية' ||
+      clean === 'qty'
+    )) {
+      mapping.qtyPerCarton = raw;
+      continue;
+    }
+
+    if (!mapping.weight && (
+      clean.includes('وزن') ||
+      clean.includes('الوزن') ||
+      clean.includes('حجم') ||
+      clean.includes('الحجم') ||
+      clean.includes('weight') ||
+      clean.includes('size')
+    )) {
+      mapping.weight = raw;
+      continue;
+    }
+
+    if (!mapping.unit && (
+      clean.includes('وحدة') ||
+      clean.includes('الوحدة') ||
+      clean === 'unit'
+    )) {
+      mapping.unit = raw;
+      continue;
+    }
+
+    if (!mapping.barcode && (
+      clean.includes('باركود') ||
+      clean.includes('الباركود') ||
+      clean.includes('barcode') ||
+      clean.includes('sku') ||
+      clean.includes('كود') ||
+      clean.includes('code')
+    )) {
+      mapping.barcode = raw;
+      continue;
+    }
+
+    if (!mapping.categoryAr && (
+      clean.includes('تصنيف') ||
+      clean.includes('التصنيف') ||
+      clean.includes('category') ||
+      clean.includes('قسم')
+    )) {
+      mapping.categoryAr = raw;
+      continue;
+    }
+
+    if (!mapping.descriptionAr && (
+      (clean.includes('وصف') && clean.includes('عرب')) ||
+      clean.includes('descar') ||
+      clean.includes('وصف') ||
+      clean.includes('الوصف')
+    )) {
+      mapping.descriptionAr = raw;
+      continue;
+    }
+
+    if (!mapping.descriptionEn && (
+      (clean.includes('وصف') && (clean.includes('انجليز') || clean.includes('إنجليز'))) ||
+      clean.includes('descen') ||
+      clean.includes('description')
+    )) {
+      mapping.descriptionEn = raw;
+      continue;
+    }
+
+    if (!mapping.imageUrl && (
+      clean.includes('صورة') ||
+      clean.includes('الصورة') ||
+      clean.includes('image') ||
+      clean.includes('photo') ||
+      clean.includes('img')
+    )) {
+      mapping.imageUrl = raw;
+      continue;
+    }
+  }
+
+  return mapping;
+}
+
+function rowToProductWithMapping(row, mapping) {
+  const get = (key) => {
+    const col = mapping[key];
+    if (!col) return '';
+    return String(row[col] ?? '').trim();
+  };
+
+  const rawWeight = get('weight');
+  let unit = get('unit');
+  if (!unit) {
+    unit = extractUnitFromWeight(rawWeight) || 'g';
+  } else {
+    unit = normalizeUnit(unit);
+  }
+
+  const barcode = get('barcode');
+  const pricePiece = get('pricePerPiece');
+  const priceCarton = get('pricePerCarton');
+  const qtyCarton = get('qtyPerCarton');
+
+  return {
+    id: newId(),
+    nameAr: get('nameAr'),
+    nameEn: get('nameEn'),
+    categoryAr: get('categoryAr'),
+    categoryEn: get('categoryEn'),
+    descriptionAr: get('descriptionAr'),
+    descriptionEn: get('descriptionEn'),
+    barcode: barcode,
+    imageUrl: get('imageUrl'),
+    variants: [
+      {
+        ...emptyVariant(),
+        weight: rawWeight,
+        unit: unit,
+        sku: barcode,
+        qtyPerCarton: qtyCarton,
+        pricePerPiece: pricePiece,
+        pricePerCarton: priceCarton,
+      },
+    ],
+  };
+}
+
 function productFromRow(row) {
   return {
     id: newId(),
@@ -677,6 +907,7 @@ export default function Home() {
   const [brandModal, setBrandModal] = useState(null);
   const [productModal, setProductModal] = useState(null);
   const [importRows, setImportRows] = useState([]);
+  const [rawFileState, setRawFileState] = useState(null);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -891,22 +1122,57 @@ export default function Home() {
       const XLSX = await import('xlsx');
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }).map(productFromRow).filter((product) => product.nameAr || product.nameEn);
-      if (!rows.length) throw new Error('الملف لا يحتوي على منتجات تحمل أسماء.');
-      setImportRows(rows);
-      notify('تمت قراءة ' + rows.length + ' صف. راجع الجدول وعدّل ما تريد قبل الإدراج.');
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if (!rawRows.length) throw new Error('الملف فارغ أو لا يحتوي على صفوف بيانات.');
+      const headers = Object.keys(rawRows[0]);
+      const initialMapping = autoDetectMapping(headers);
+      setRawFileState({
+        filename: file.name,
+        headers,
+        rows: rawRows,
+        mapping: initialMapping,
+      });
+      setImportRows([]);
+      notify('تمت قراءة ' + rawRows.length + ' صف من «' + file.name + '». طابق الأعمدة أدناه واضغط تطبيق للمعاينة.');
     } catch (error) {
       notify(error.message || 'تعذر قراءة ملف Excel.', 'warning');
     } finally {
       event.target.value = '';
     }
   };
+
+  const updateColumnMapping = (fieldKey, colName) => {
+    setRawFileState((curr) => curr ? ({
+      ...curr,
+      mapping: { ...curr.mapping, [fieldKey]: colName }
+    }) : null);
+  };
+
+  const applyColumnMapping = () => {
+    if (!rawFileState) return;
+    const { rows, mapping } = rawFileState;
+    const mapped = rows
+      .map((row) => rowToProductWithMapping(row, mapping))
+      .filter((p) => p.nameAr || p.nameEn);
+    if (!mapped.length) {
+      return notify('يرجى تحديد عامود الاسم العربي أو الإنجليزي على الأقل لتحديد المنتجات.', 'warning');
+    }
+    setImportRows(mapped);
+    notify('تم تجهيز ' + mapped.length + ' صف للمعاينة! راجع الجدول أدناه قبل الإدراج.');
+  };
+
+  const resetImport = () => {
+    setRawFileState(null);
+    setImportRows([]);
+  };
+
   const insertImportRows = async () => {
     if (!activeBrand || !importRows.length) return;
     setBusy(true);
     try {
       const result = await request('/api/brands/' + activeBrand.id + '/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ products: importRows }) });
       setImportRows([]);
+      setRawFileState(null);
       notify('تم إدراج ' + result.products.length + ' صفحة في البراند.');
       await refresh(activeBrand.id);
       go('catalog');
@@ -986,7 +1252,7 @@ export default function Home() {
       {view === 'dashboard' && <section className="page-shell dashboard"><div className="dashboard-hero"><div><p className="eyebrow">MULTI-BRAND CATALOGS</p><h2>كل براند ومنتجاته في مكان واحد.</h2><p>أنشئ براند، ارفع الشعار، راجع Excel قبل الإدراج، ثم عدّل أي صفحة يدويًا وصدّر كتالوج PDF.</p><div className="hero-actions"><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button>{activeBrand && <button className="button button-ghost" onClick={() => go('catalog')}><Icon name="folder" size={18} /> فتح الصفحات</button>}</div></div><div className="dashboard-brand-card">{activeBrand ? <><BrandBadge brand={activeBrand} large /><div><span>البراند النشط</span><strong>{activeBrand.nameAr}</strong><small>{products.length} صفحة منتج</small></div></> : <><span className="hero-icon"><Icon name="tag" size={27} /></span><p>لا يوجد براند نشط</p></>}</div></div><div className="stats-grid"><Stat icon="tag" label="إجمالي البراندات" value={brands.length} /><Stat icon="file" label="صفحات البراند النشط" value={products.length} /><Stat icon="image" label="صور محفوظة" value={products.filter((item) => item.imageUrl).length} /><Stat icon="grid" label="مقاسات مسجلة" value={products.reduce((total, item) => total + (item.variants?.length || 0), 0)} /></div><section className="dashboard-section"><div className="section-bar"><div><h2>آخر البراندات</h2><p>اختر براندًا لتعديل صفحاته أو إعداداته.</p></div><button className="button button-ghost" onClick={() => go('brands')}>كل البراندات <Icon name="arrow" size={16} /></button></div>{brands.length ? <div className="brand-grid">{brands.slice(0, 4).map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section></section>}
       {view === 'brands' && <section className="page-shell"><div className="section-bar"><div><h2>إدارة البراندات</h2><p>أضف براندات متعددة وغيّر الشعار والهوية في أي وقت.</p></div><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button></div>{brands.length ? <div className="brand-grid brand-grid--full">{brands.map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} onDelete={() => removeBrand(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section>}
       {view === 'catalog' && <section className="page-shell">{activeBrand ? <><div className="catalog-toolbar"><div className="brand-page-heading"><BrandBadge brand={activeBrand} large /><div><div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap' }}><h2>{activeBrand.nameAr}</h2>{brands.length > 1 && <select className="brand-select-dropdown" value={activeBrand.id} onChange={(e) => { const found = brands.find((b) => b.id === e.target.value); if (found) chooseBrand(found); }} title="التبديل بين كتالوجات البراندات">{brands.map((b) => <option key={b.id} value={b.id}>{b.nameAr} {b.nameEn ? '(' + b.nameEn + ')' : ''}</option>)}</select>}</div><p>{activeBrand.nameEn || 'Product catalog'} · كتالوج كامل بـ {products.length} صفحة</p></div></div><div className="catalog-toolbar-actions"><label className="search-box"><Icon name="search" size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث بالاسم أو الباركود" /></label><button className="button button-ghost" onClick={() => setCatalogPreviewModal(true)} disabled={!products.length} title="معاينة صفحات الكتالوج بالكامل"><Icon name="eye" size={18} /> معاينة الكتالوج</button><button className="button button-ghost" onClick={() => go('import')}><Icon name="upload" size={18} /> استيراد Excel</button><button className="button button-primary" onClick={() => setProductModal({ mode: 'new', product: emptyProduct() })}><Icon name="plus" size={18} /> صفحة جديدة</button><button className="button button-primary" disabled={busy || !products.length} onClick={exportInstantPdf} title="تصدير فوري بدون انتظار عبر المتصفح (0 ثانية)"><Icon name="download" size={18} /> ⚡ تصدير فوري ({products.length})</button><button className="button button-ghost" disabled={busy || !products.length} onClick={exportPdf} title="تنزيل ملف PDF مباشرة عبر السيرفر">{busy ? 'جاري التنزيل…' : 'تنزيل ملف'}</button></div></div>{products.length > 1 && !query && <div className="catalog-reorder-banner"><span><Icon name="grip" size={16} />اسحب وأفلت أي كرت لإعادة ترتيب موضع الصفحات في الكتالوج، أو استخدم أزرار الأسهم. الترتيب ينعكس تلقائياً في ملف PDF.</span>{savingOrder && <small>جاري حفظ الترتيب…</small>}</div>}{products.length ? <><div className="product-grid">{filteredProducts.map((product, idx) => { const actualIndex = products.findIndex((p) => p.id === product.id); return <ProductCard key={product.id} brand={activeBrand} product={product} index={actualIndex >= 0 ? actualIndex : idx} total={products.length} isDragging={draggedIndex === actualIndex} isDragOver={dragOverIndex === actualIndex} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd} onMoveUp={() => moveProduct(actualIndex, actualIndex - 1)} onMoveDown={() => moveProduct(actualIndex, actualIndex + 1)} onPreview={() => setPreviewModal(product)} onEdit={() => setProductModal({ mode: 'edit', product })} onDuplicate={() => duplicateProduct(product)} onDelete={() => removeProduct(product)} />; })}</div>{!filteredProducts.length && <div className="search-empty">لا توجد صفحات تطابق البحث.</div>}</> : <EmptyState onNew={() => setProductModal({ mode: 'new', product: emptyProduct() })} onImport={() => go('import')} />}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
-      {view === 'import' && <section className="page-shell import-page">{activeBrand ? <><div className="import-hero"><span className="hero-icon"><Icon name="upload" size={27} /></span><p className="eyebrow">EXCEL PREVIEW BEFORE INSERT</p><h2>استيراد صفحات {activeBrand.nameAr}</h2><p>ارفع Excel، راجع كل صف في الجدول، عدّل أي صفحة، ثم أدرج المجموعة بعد التأكيد.</p></div><div className="import-actions"><button className="import-card" onClick={downloadTemplate}><span><Icon name="download" size={23} /></span><div><strong>1. تنزيل قالب Excel</strong><p>يشمل البيانات الأساسية وحقل variants للمقاسات المتعددة.</p></div><Icon name="arrow" size={19} /></button><button className="import-card" onClick={() => importInput.current?.click()}><span><Icon name="upload" size={23} /></span><div><strong>2. اختيار ملف Excel</strong><p>يدعم XLSX وXLS ويعرض المعاينة قبل الإدراج.</p></div><Icon name="arrow" size={19} /></button><input ref={importInput} type="file" accept=".xlsx,.xls" onChange={readExcel} /></div>{importRows.length > 0 && <section className="import-review"><div className="review-header"><div><h3>معاينة البيانات</h3><p>{importRows.length} صف جاهز للمراجعة. زر تعديل لا يحفظ في القاعدة إلا بعد الضغط على إدراج الصفحات.</p></div><div><button className="button button-ghost" onClick={() => setImportRows([])}>إلغاء الملف</button><button className="button button-primary" disabled={busy} onClick={insertImportRows}><Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}</button></div></div><div className="table-wrap"><table><thead><tr><th>المنتج</th><th>التصنيف</th><th>المقاسات</th><th>الباركود</th><th>إجراء</th></tr></thead><tbody>{importRows.map((row, index) => <tr key={row.id}><td><strong>{row.nameAr || 'بدون اسم عربي'}</strong><small>{row.nameEn}</small></td><td>{row.categoryAr || '—'}</td><td>{row.variants.map((variant) => variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : '—').join('، ')}</td><td dir="ltr">{row.barcode || '—'}</td><td><button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}><Icon name="edit" size={15} /> تعديل</button><button className="table-action danger" onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15} /> حذف</button></td></tr>)}</tbody></table></div></section>}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
+      {view === 'import' && <section className="page-shell import-page">{activeBrand ? <><div className="import-hero"><span className="hero-icon"><Icon name="upload" size={27} /></span><p className="eyebrow">EXCEL COLUMN MAPPING & PREVIEW</p><h2>استيراد صفحات {activeBrand.nameAr}</h2><p>ارفع ملف Excel، حدد مطابقة كل عامود مع العنصر المناسب له، عاين البيانات، ثم أدرج الصفحات في الكتالوج.</p></div>{!rawFileState && !importRows.length && <div className="import-actions"><button className="import-card" onClick={downloadTemplate}><span><Icon name="download" size={23} /></span><div><strong>1. تنزيل قالب Excel</strong><p>يشمل الأعمدة الافتراضية وحقل variants للمقاسات المتعددة.</p></div><Icon name="arrow" size={19} /></button><button className="import-card" onClick={() => importInput.current?.click()}><span><Icon name="upload" size={23} /></span><div><strong>2. اختيار ملف Excel</strong><p>يدعم أي ملف XLSX أو XLS بأي ترتيب للأعمدة ويفتح واجهة المطابقة.</p></div><Icon name="arrow" size={19} /></button><input ref={importInput} type="file" accept=".xlsx,.xls" onChange={readExcel} /></div>}{rawFileState && !importRows.length && <section className="import-mapping"><div className="mapping-header"><div><h3><Icon name="tag" size={18} /> تحديد ومطابقة أعمدة الملف</h3><p>اختر لكل عنصر في الكتالوج العامود المقابل له في ملف Excel المرفوع:</p></div><div className="mapping-file-info"><span className="mapping-badge">الملف: {rawFileState.filename} ({rawFileState.rows.length} صف)</span><button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button></div></div><div className="mapping-grid">{MAPPABLE_FIELDS.map((field) => <div key={field.key} className={['mapping-field-card', field.required && 'is-required'].filter(Boolean).join(' ')}><div className="mapping-field-label"><span>{field.label}</span>{field.required ? <span className="req">مطلوب</span> : <small className="mapping-field-hint">{field.hint}</small>}</div><select className="mapping-select" value={rawFileState.mapping[field.key] || ''} onChange={(e) => updateColumnMapping(field.key, e.target.value)}><option value="">-- تجاهل هذا الحقل --</option>{rawFileState.headers.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>)}</div><div className="mapping-preview-section"><h4>معاينة حية للمطابقة (أول {Math.min(3, rawFileState.rows.length)} صفوف):</h4><div className="table-wrap"><table><thead><tr><th>الاسم بالعربي</th><th>الاسم بالإنجليزي</th><th>سعر الحبة</th><th>سعر الكرتون</th><th>عدد الكرتون</th><th>الوزن / الحجم</th><th>الباركود</th></tr></thead><tbody>{rawFileState.rows.slice(0, 3).map((r, i) => { const p = rowToProductWithMapping(r, rawFileState.mapping); const v = p.variants[0] || {}; return <tr key={i}><td><strong>{p.nameAr || '—'}</strong></td><td>{p.nameEn || '—'}</td><td>{v.pricePerPiece || '—'}</td><td>{v.pricePerCarton || '—'}</td><td>{v.qtyPerCarton || '—'}</td><td>{v.weight ? (v.weight + ' ' + (v.unit || '')) : '—'}</td><td dir="ltr">{p.barcode || '—'}</td></tr>; })}</tbody></table></div></div><div className="mapping-actions-bar"><button className="button button-ghost" onClick={resetImport}>إلغاء واختيار ملف آخر</button><button className="button button-primary" onClick={applyColumnMapping}><Icon name="check" size={17} /> تطبيق المطابقة ومعاينة البيانات ({rawFileState.rows.length} صف)</button></div></section>}{importRows.length > 0 && <section className="import-review"><div className="review-header"><div><h3>معاينة البيانات قبل الإدراج</h3><p>{importRows.length} صف جاهز للمراجعة. يمكنك تعديل أي صف أو حذفه، ثم الضغط على إدراج الصفحات في الكتالوج.</p></div><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{rawFileState && <button className="button button-ghost" onClick={() => setImportRows([])} title="العودة لشاشة مطابقة وتحديد الأعمدة"><Icon name="settings" size={15} /> تعديل مطابقة الأعمدة</button>}<button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button><button className="button button-primary" disabled={busy} onClick={insertImportRows}><Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}</button></div></div><div className="table-wrap"><table><thead><tr><th>المنتج</th><th>التصنيف</th><th>المقاسات</th><th>الباركود</th><th>إجراء</th></tr></thead><tbody>{importRows.map((row, index) => <tr key={row.id}><td><strong>{row.nameAr || 'بدون اسم عربي'}</strong><small>{row.nameEn}</small></td><td>{row.categoryAr || '—'}</td><td>{row.variants.map((variant) => variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : '—').join('، ')}</td><td dir="ltr">{row.barcode || '—'}</td><td><button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}><Icon name="edit" size={15} /> تعديل</button><button className="table-action danger" onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15} /> حذف</button></td></tr>)}</tbody></table></div></section>}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
       {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><p className="eyebrow">ACTIVE BRAND DESIGN</p><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'category', label: 'التصنيف' }, { key: 'description', label: 'الوصف' }, { key: 'prices', label: 'سعر الحبة' }, { key: 'cartonPrice', label: 'سعر الكرتون' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key] !== false} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
     </section>
     <div className="pdf-stage" ref={pdfRef} aria-hidden="true">
