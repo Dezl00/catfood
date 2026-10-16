@@ -670,24 +670,8 @@ const CACHE_ACTIVE_KEY = 'catfood_active_brand_cache_v3';
 
 export default function Home() {
   const [view, setView] = useState('dashboard');
-  const [brands, setBrands] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(CACHE_BRANDS_KEY);
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return [];
-  });
-  const [activeBrand, setActiveBrand] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(CACHE_ACTIVE_KEY);
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return null;
-  });
+  const [brands, setBrands] = useState([]);
+  const [activeBrand, setActiveBrand] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [brandModal, setBrandModal] = useState(null);
@@ -729,6 +713,18 @@ export default function Home() {
   }, [activeBrand?.id, loadBrand, loadBrands]);
 
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_BRANDS_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length) setBrands(parsed);
+      }
+      const cachedActive = localStorage.getItem(CACHE_ACTIVE_KEY);
+      if (cachedActive) {
+        const parsed = JSON.parse(cachedActive);
+        if (parsed && parsed.id) setActiveBrand(parsed);
+      }
+    } catch {}
     refresh().catch((error) => notify(error.message, 'warning'));
   }, [refresh, notify]);
   useEffect(() => {
@@ -988,7 +984,7 @@ export default function Home() {
   }, [products, query]);
   const nav = [{ id: 'dashboard', label: 'لوحة التحكم', icon: 'grid' }, { id: 'brands', label: 'البراندات', icon: 'tag', count: brands.length }, { id: 'catalog', label: 'صفحات البراند', icon: 'folder', disabled: !activeBrand }, { id: 'import', label: 'استيراد Excel', icon: 'upload', disabled: !activeBrand }, { id: 'settings', label: 'إعدادات البراند', icon: 'settings', disabled: !activeBrand }];
 
-  return <main className="studio-shell">
+  return <main className="studio-shell" suppressHydrationWarning>
     <aside className={['app-sidebar', mobileMenu && 'is-open'].filter(Boolean).join(' ')}><div className="sidebar-brand"><span className="brand-mark">C</span><div><strong>Catalog Studio</strong><small>لوحة إدارة الكتالوجات</small></div></div><nav className="sidebar-nav">{nav.map((item) => <button key={item.id} disabled={item.disabled} className={view === item.id ? 'active' : ''} onClick={() => go(item.id)}><Icon name={item.icon} /><span>{item.label}</span>{item.count !== undefined && <b>{item.count}</b>}</button>)}</nav><div className="sidebar-active-brand">{activeBrand ? <><BrandBadge brand={activeBrand} /><div><small>البراند النشط</small><strong>{activeBrand.nameAr}</strong></div></> : <span>أنشئ براندًا للبدء</span>}</div></aside>{mobileMenu && <button className="sidebar-backdrop" onClick={() => setMobileMenu(false)} aria-label="إغلاق القائمة" />}
     <section className="workspace"><header className="topbar"><button className="mobile-menu" onClick={() => setMobileMenu(true)}><Icon name="menu" /></button><div><p className="eyebrow">BRAND CATALOG MANAGER</p><h1>{view === 'dashboard' ? 'لوحة التحكم' : view === 'brands' ? 'البراندات' : view === 'catalog' ? 'صفحات كتالوج ' + (activeBrand?.nameAr || '') : view === 'import' ? 'استيراد ومراجعة الملف' : 'إعدادات التصميم'}</h1></div><div className="topbar-actions"><button className="button button-ghost" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button>{activeBrand && <button className="button button-primary" disabled={busy || !products.length} onClick={exportPdf}><Icon name="download" size={18} /> {busy ? 'جاري التصدير…' : 'تصدير PDF (' + products.length + ')'}</button>}</div></header>
       {view === 'dashboard' && <section className="page-shell dashboard"><div className="dashboard-hero"><div><p className="eyebrow">MULTI-BRAND CATALOGS</p><h2>كل براند ومنتجاته في مكان واحد.</h2><p>أنشئ براند، ارفع الشعار، راجع Excel قبل الإدراج، ثم عدّل أي صفحة يدويًا وصدّر كتالوج PDF.</p><div className="hero-actions"><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button>{activeBrand && <button className="button button-ghost" onClick={() => go('catalog')}><Icon name="folder" size={18} /> فتح الصفحات</button>}</div></div><div className="dashboard-brand-card">{activeBrand ? <><BrandBadge brand={activeBrand} large /><div><span>البراند النشط</span><strong>{activeBrand.nameAr}</strong><small>{products.length} صفحة منتج</small></div></> : <><span className="hero-icon"><Icon name="tag" size={27} /></span><p>لا يوجد براند نشط</p></>}</div></div><div className="stats-grid"><Stat icon="tag" label="إجمالي البراندات" value={brands.length} /><Stat icon="file" label="صفحات البراند النشط" value={products.length} /><Stat icon="image" label="صور محفوظة" value={products.filter((item) => item.imageUrl).length} /><Stat icon="grid" label="مقاسات مسجلة" value={products.reduce((total, item) => total + (item.variants?.length || 0), 0)} /></div><section className="dashboard-section"><div className="section-bar"><div><h2>آخر البراندات</h2><p>اختر براندًا لتعديل صفحاته أو إعداداته.</p></div><button className="button button-ghost" onClick={() => go('brands')}>كل البراندات <Icon name="arrow" size={16} /></button></div>{brands.length ? <div className="brand-grid">{brands.slice(0, 4).map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section></section>}

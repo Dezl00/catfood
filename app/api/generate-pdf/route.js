@@ -33,6 +33,7 @@ export async function POST(request) {
       executablePath = await chromium.executablePath(packUrl);
       args = chromium.args;
       headless = chromium.headless;
+    } else {
       // Local development with fast launch flags
       puppeteer = await import('puppeteer').then(mod => mod.default || mod);
       args = [
@@ -41,10 +42,6 @@ export async function POST(request) {
         '--disable-gpu',
         '--disable-dev-shm-usage',
         '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-extensions',
-        '--mute-audio',
       ];
       headless = true;
       const browserCandidates = [
