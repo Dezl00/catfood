@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { existsSync } from 'fs';
 
 export const maxDuration = 60; // Max duration for Vercel Hobby
 
@@ -7,6 +8,12 @@ export async function POST(request) {
   
   try {
     const { html, css } = await request.json();
+    if (typeof html !== 'string' || typeof css !== 'string' || !html.trim()) {
+      return NextResponse.json({ error: 'Invalid document payload' }, { status: 400 });
+    }
+    if (html.length > 8_000_000 || css.length > 2_000_000) {
+      return NextResponse.json({ error: 'Document is too large to export' }, { status: 413 });
+    }
     
     let puppeteer;
     let executablePath = null;
@@ -30,7 +37,14 @@ export async function POST(request) {
       // Local development
       puppeteer = await import('puppeteer').then(mod => mod.default || mod);
       args = ['--no-sandbox', '--disable-setuid-sandbox'];
-      headless = 'new';
+      headless = true;
+      const browserCandidates = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      ].filter(Boolean);
+      executablePath = browserCandidates.find((candidate) => existsSync(candidate)) || null;
     }
     
     browser = await puppeteer.launch({
@@ -40,6 +54,21 @@ export async function POST(request) {
     });
     
     const page = await browser.newPage();
+    await page.setRequestInterception(true);
+    page.on('request', (interceptedRequest) => {
+      const url = interceptedRequest.url();
+      const isEmbeddedAsset = url.startsWith('data:') || url === 'about:blank';
+      const isGoogleFont = url.startsWith('https://fonts.googleapis.com/') || url.startsWith('https://fonts.gstatic.com/');
+      const cloudinaryBase = process.env.CLOUDINARY_CLOUD_NAME
+        ? 'https://res.cloudinary.com/' + process.env.CLOUDINARY_CLOUD_NAME + '/'
+        : '';
+      const isCloudinaryAsset = cloudinaryBase && url.startsWith(cloudinaryBase);
+      if (isEmbeddedAsset || isGoogleFont || isCloudinaryAsset) {
+        interceptedRequest.continue();
+      } else {
+        interceptedRequest.abort();
+      }
+    });
     
     // Build a complete standalone HTML page with all styles and fonts
     const fullHtml = `<!DOCTYPE html>
@@ -47,9 +76,6 @@ export async function POST(request) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     ${css}
     
@@ -94,14 +120,15 @@ export async function POST(request) {
 </body>
 </html>`;
     
-    await page.setContent(fullHtml, { 
-      waitUntil: ['networkidle0', 'domcontentloaded'],
-      timeout: 30000 
-    });
+    await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
     
-    // Wait for fonts and images to load
-    await page.evaluate(() => document.fonts.ready);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // A bounded font wait avoids a failed third-party request blocking PDF export.
+    await page.evaluate(async () => {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise((resolve) => setTimeout(resolve, 2500)),
+      ]);
+    });
     
     const pdfBuffer = await page.pdf({
       format: 'A4',
