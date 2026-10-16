@@ -1,9 +1,41 @@
 import { NextResponse } from 'next/server';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import path from 'path';
 
 export const maxDuration = 60; // Max duration for Vercel Hobby
 
 let globalBrowser = null;
+let cachedFontCss = null;
+let cachedGlobalsCss = null;
+
+function getServerGlobalsCss() {
+  if (cachedGlobalsCss) return cachedGlobalsCss;
+  try {
+    const cssPath = path.join(process.cwd(), 'app', 'globals.css');
+    if (existsSync(cssPath)) {
+      cachedGlobalsCss = readFileSync(cssPath, 'utf-8');
+      return cachedGlobalsCss;
+    }
+  } catch (e) {
+    console.error('Failed to read globals.css:', e);
+  }
+  return '';
+}
+
+function getLocalFontCss() {
+  if (cachedFontCss) return cachedFontCss;
+  try {
+    const fontsPath = path.join(process.cwd(), 'public', 'fonts', 'local-fonts.css');
+    if (existsSync(fontsPath)) {
+      const fontsDir = path.join(process.cwd(), 'public', 'fonts').replace(/\\/g, '/');
+      cachedFontCss = readFileSync(fontsPath, 'utf-8').replace(/url\(\/fonts\//g, `url(file:///${fontsDir}/`);
+      return cachedFontCss;
+    }
+  } catch (e) {
+    console.error('Failed to load local font css:', e);
+  }
+  return '';
+}
 
 async function getBrowser() {
   if (globalBrowser && globalBrowser.isConnected()) {
@@ -30,13 +62,11 @@ async function getBrowser() {
       '--disable-setuid-sandbox',
       '--disable-gpu',
       '--disable-dev-shm-usage',
-      '--single-process',
-      '--no-zygote',
       '--disable-extensions',
     ];
     headless = chromium.headless;
   } else {
-    // Local development with fast launch flags
+    // Local development with fast, stable launch flags (NO --single-process to prevent Windows crash)
     puppeteer = await import('puppeteer').then(mod => mod.default || mod);
     args = [
       '--no-sandbox',
@@ -44,15 +74,15 @@ async function getBrowser() {
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--no-first-run',
-      '--no-zygote',
-      '--single-process',
       '--disable-extensions',
+      '--allow-file-access-from-files',
     ];
     headless = true;
     const browserCandidates = [
       process.env.PUPPETEER_EXECUTABLE_PATH,
       'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
       'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
       'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     ].filter(Boolean);
     executablePath = browserCandidates.find((candidate) => existsSync(candidate)) || null;
@@ -77,25 +107,31 @@ export async function POST(request) {
   try {
     const { html, css } = await request.json();
     if (typeof html !== 'string' || typeof css !== 'string' || !html.trim()) {
-      return NextResponse.json({ error: 'Invalid document payload' }, { status: 400 });
+      return NextResponse.json({ error: 'محتوى الكتالوج غير صالح للتصدير' }, { status: 400 });
     }
     if (html.length > 8_000_000 || css.length > 2_000_000) {
-      return NextResponse.json({ error: 'Document is too large to export' }, { status: 413 });
+      return NextResponse.json({ error: 'حجم الكتالوج كبير جداً' }, { status: 413 });
     }
     
     const browser = await getBrowser();
     page = await browser.newPage();
     
-    // Fast standalone HTML page with fonts and styles
+    const localFontCss = getLocalFontCss();
+    
+    // Fast standalone HTML page with 100% local fonts and exact styling
     const fullHtml = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600&family=Mulish:wght@200;300;350&family=Noto+Kufi+Arabic:wght@400;700&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    /* 100% Local Fonts */
+    ${localFontCss}
+
+    /* Core Application & Catalog Styles */
+    ${getServerGlobalsCss()}
+
+    /* Injected Runtime Styles */
     ${css}
     
     /* Exact Cat Food PDF Page Geometry */
@@ -108,6 +144,8 @@ export async function POST(request) {
       box-sizing: border-box;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
     }
     
     html, body {
@@ -149,13 +187,13 @@ export async function POST(request) {
     
     await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 15000 });
     
-    // Quick parallel check for fonts and images without arbitrary blocking delays
+    // Quick check for fonts and images
     await page.evaluate(async () => {
       try {
         if (document.fonts) {
           await Promise.race([
             document.fonts.ready,
-            new Promise((resolve) => setTimeout(resolve, 800)),
+            new Promise((resolve) => setTimeout(resolve, 300)),
           ]);
         }
       } catch {}
@@ -166,7 +204,7 @@ export async function POST(request) {
           pendingImages.map((img) =>
             new Promise((resolve) => {
               img.onload = img.onerror = resolve;
-              setTimeout(resolve, 1500);
+              setTimeout(resolve, 800);
             })
           )
         );
@@ -190,12 +228,11 @@ export async function POST(request) {
     
   } catch (error) {
     console.error('PDF generation error:', error);
-    // If browser crashed, reset globalBrowser
     if (globalBrowser && !globalBrowser.isConnected()) {
       globalBrowser = null;
     }
     return NextResponse.json(
-      { error: 'Failed to generate PDF: ' + error.message },
+      { error: 'فشل في إنشاء ملف PDF: ' + error.message },
       { status: 500 }
     );
   } finally {
