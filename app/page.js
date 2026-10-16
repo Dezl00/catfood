@@ -66,18 +66,310 @@ function UploadZone({ preview, onFile, label, note, compact = false }) {
   </div>;
 }
 
+function getTableColumns(visible) {
+  const showWeight = true; // Always visible
+  const showCarton = visible?.carton !== false;
+  const showPrice = visible?.prices !== false;
+  const showBarcode = visible?.barcode !== false;
+
+  // Exact spec numbers when all 4 columns are visible
+  if (showWeight && showCarton && showPrice && showBarcode) {
+    return [
+      { key: 'barcode', title: 'باركود', left: 32.50, width: 170.20, align: 'ltr' },
+      { key: 'price', title: 'السعر', left: 207.10, width: 110.70, align: 'ltr' },
+      { key: 'carton', title: 'العدد بالكرتون', left: 323.00, width: 110.70, align: 'ltr' },
+      { key: 'weight', title: 'الوزن', left: 438.40, width: 110.60, align: 'ltr' },
+    ];
+  }
+
+  // Reflow logic for hidden columns
+  const activeCols = [];
+  if (showBarcode) activeCols.push({ key: 'barcode', title: 'باركود', weight: 1.54, align: 'ltr' });
+  if (showPrice) activeCols.push({ key: 'price', title: 'السعر', weight: 1.0, align: 'ltr' });
+  if (showCarton) activeCols.push({ key: 'carton', title: 'العدد بالكرتون', weight: 1.0, align: 'ltr' });
+  if (showWeight) activeCols.push({ key: 'weight', title: 'الوزن', weight: 1.0, align: 'ltr' });
+
+  const gap = 5.0;
+  const totalGaps = Math.max(0, activeCols.length - 1) * gap;
+  const availableContentWidth = 516.5 - totalGaps;
+  const totalWeight = activeCols.reduce((sum, c) => sum + c.weight, 0);
+
+  let currentLeft = 32.50;
+  return activeCols.map((col) => {
+    const width = Number(((col.weight / totalWeight) * availableContentWidth).toFixed(2));
+    const left = Number(currentLeft.toFixed(2));
+    currentLeft += width + gap;
+    return { ...col, left, width };
+  });
+}
+
+function computeProductLayout(product, settings, variants) {
+  const hasDescAr = settings?.visible?.description !== false && Boolean(product.descriptionAr?.trim());
+  const hasDescEn = settings?.visible?.description !== false && Boolean(product.descriptionEn?.trim());
+  const hasDescriptions = hasDescAr || hasDescEn;
+
+  const rowCount = Math.max(1, variants.length);
+  // Table height = 23.8 (header) + 2.9 (header gap) + rowCount * 23.8 + (rowCount - 1) * 4.2
+  // = 22.5 + rowCount * 28
+  const tableHeight = 22.5 + rowCount * 28;
+
+  const availableTotalHeight = 623.0; // from y = 145.8 to 768.8
+  const descHeight = hasDescriptions ? 114.2 : 0;
+  const descGap1 = hasDescriptions ? 37.2 : 0;
+  const descGap2 = hasDescriptions ? 36.9 : 37.0;
+
+  // Flexible image card height (min 180pt, default 328.3pt when 3 rows + desc)
+  const cardHeight = Math.max(180, availableTotalHeight - descHeight - tableHeight - descGap1 - descGap2);
+  const cardBottom = 145.8 + cardHeight;
+
+  // Name pill centered on card bottom border (y = cardBottom)
+  const pillHeight = 17.93;
+  const pillTop = cardBottom - pillHeight / 2;
+  const nameArTop = pillTop - 27;
+
+  // Descriptions top
+  const descTop = hasDescriptions ? cardBottom + descGap1 : 0;
+
+  // Table top
+  const tableTop = hasDescriptions ? descTop + 114.2 + descGap2 : cardBottom + descGap2;
+
+  return {
+    cardHeight,
+    cardBottom,
+    pillTop,
+    nameArTop,
+    hasDescAr,
+    hasDescEn,
+    hasDescriptions,
+    descTop,
+    tableTop,
+  };
+}
+
+function formatVariantCell(variant, product, key) {
+  switch (key) {
+    case 'weight': {
+      const w = String(variant.weight || '').trim();
+      const u = String(variant.unit || '').trim();
+      if (!w) return '—';
+      if (u && !w.includes(u)) return `${w} ${u}`;
+      return w;
+    }
+    case 'carton':
+      return String(variant.qtyPerCarton || '').trim() || '—';
+    case 'price':
+      return String(variant.pricePerPiece || variant.pricePerCarton || '').trim() || '—';
+    case 'barcode':
+      return String(variant.sku || product.barcode || '').trim() || '—';
+    default:
+      return '—';
+  }
+}
+
+function CatalogWelcomeSheet({ brand }) {
+  const brandAr = brand?.nameAr || 'كـات فـود';
+  const brandEn = brand?.nameEn || 'CAT FOOD';
+  const logoUrl = brand?.logoUrl;
+
+  return (
+    <section className="catfood-page" id="welcome" aria-label="صفحة الترحيب">
+      <div className="cf-header-band" />
+      <div className="cf-header-ar">{brandAr}</div>
+      <div className="cf-header-en">{brandEn}</div>
+
+      <div className="cf-dash-left" />
+      <div className="cf-dash-right" />
+      <div className="cf-alhamdulillah">بحمد الله</div>
+      <div className="cf-received-ar">وصلنا منتجات من شركة</div>
+      <div className="cf-received-en-pill">
+        <span className="cf-received-en-text">WE HAVE RECEIVED NEW PRODUCTS FROM</span>
+      </div>
+
+      <div className="cf-logo-card">
+        {logoUrl ? (
+          <img src={logoUrl} alt={brandAr} className="cf-brand-logo-img" />
+        ) : (
+          <div className="cf-logo-fallback">{brandAr}</div>
+        )}
+      </div>
+
+      <div className="cf-welcome-footer-text">{brandEn}</div>
+      <div className="cf-welcome-footer-line" />
+    </section>
+  );
+}
+
+function CatalogClosingSheet({ brand }) {
+  const brandAr = brand?.nameAr || 'كـات فـود';
+  const brandEn = brand?.nameEn || 'CAT FOOD';
+
+  return (
+    <section className="catfood-page" id="closing" aria-label="صفحة الختام">
+      <div className="cf-navy-arch" />
+      <div className="cf-thanks-ar">خدمتكم تسعدنا</div>
+      <div className="cf-thanks-en">THANK YOU</div>
+      <div className="cf-brand-ar">{brandAr}</div>
+      <div className="cf-brand-en">{brandEn}</div>
+      <div className="cf-closing-footer-text">{brandEn}</div>
+      <div className="cf-closing-footer-line" />
+    </section>
+  );
+}
+
 function ProductSheet({ brand, product, compact = false }) {
+  const brandAr = brand?.nameAr || 'كـات فـود';
+  const brandEn = brand?.nameEn || 'CAT FOOD';
   const settings = mergeSettings(brand?.settings);
   const variants = product.variants?.length ? product.variants : [emptyVariant()];
-  return <article className={['catalog-sheet', compact && 'catalog-sheet--compact'].filter(Boolean).join(' ')}>
-    <header className="sheet-header"><div className="sheet-brand"><BrandBadge brand={brand} /><div><strong>{brand?.nameAr || 'البراند'}</strong><span>{brand?.nameEn || 'PRODUCT CATALOG'}</span></div></div>{settings.visible.category && (product.categoryAr || product.categoryEn) && <div className="sheet-category"><b>{product.categoryAr}</b><small>{product.categoryEn}</small></div>}</header>
-    <div className="sheet-body"><section className="sheet-image-wrap">{product.imageUrl ? <img src={product.imageUrl} alt={product.nameAr || product.nameEn || 'صورة المنتج'} /> : <div className="sheet-image-empty"><Icon name="image" size={38} /><span>صورة المنتج</span></div>}</section>
-      <section className="sheet-copy"><h2 className={!product.nameAr && !product.nameEn ? 'placeholder' : ''}>{product.nameAr || product.nameEn || 'اسم المنتج'}</h2><p className={['english-title', !product.nameEn && 'placeholder'].filter(Boolean).join(' ')}>{product.nameEn || 'Product name'}</p>
-        {settings.visible.description && (product.descriptionAr || product.descriptionEn) && <div className="descriptions">{product.descriptionAr && <p>{product.descriptionAr}</p>}{product.descriptionEn && <p className="en">{product.descriptionEn}</p>}</div>}
-        <div className="variant-table"><div className="variant-head"><span>الحجم / الوزن</span>{settings.visible.carton && <span>الكرتون</span>}{settings.visible.prices && <span>سعر الحبة</span>}{settings.visible.prices && <span>سعر الكرتون</span>}</div>{variants.map((variant) => <div className="variant-row" key={variant.id}><strong>{variant.weight ? variant.weight + ' ' + variant.unit : '—'}</strong>{settings.visible.carton && <span>{variant.qtyPerCarton || '—'}</span>}{settings.visible.prices && <span>{price(variant.pricePerPiece, settings.currency)}</span>}{settings.visible.prices && <span>{price(variant.pricePerCarton, settings.currency)}</span>}</div>)}</div>
-        {settings.visible.barcode && product.barcode && <div className="barcode"><span>{product.barcode}</span><i /></div>}
-      </section></div><footer className="sheet-footer"><span>{settings.footerText}</span><span>Product catalog</span></footer>
-  </article>;
+
+  const layout = computeProductLayout(product, settings, variants);
+  const columns = getTableColumns(settings.visible);
+
+  return (
+    <article className="catfood-page" id="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
+      {/* Header Band */}
+      <div className="cf-header-band" />
+      <div className="cf-header-ar">{brandAr}</div>
+      <div className="cf-header-en">{brandEn}</div>
+
+      {/* Image Card */}
+      <div className="cf-image-card" style={{ height: `${layout.cardHeight}pt` }}>
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.nameAr || product.nameEn || ''}
+            className="cf-product-image-img"
+            style={{ maxHeight: `${layout.cardHeight - 52}pt` }}
+          />
+        ) : (
+          <div className="cf-product-image-empty">
+            <Icon name="image" size={48} />
+            <span>صورة المنتج</span>
+          </div>
+        )}
+      </div>
+
+      {/* Product Names */}
+      {product.nameAr && (
+        <div className="cf-name-ar" style={{ top: `${layout.nameArTop}pt` }}>
+          {product.nameAr}
+        </div>
+      )}
+      {product.nameEn && (
+        <div className="cf-name-pill" style={{ top: `${layout.pillTop}pt` }}>
+          {product.nameEn}
+        </div>
+      )}
+
+      {/* Descriptions */}
+      {layout.hasDescriptions && (
+        <>
+          {layout.hasDescAr && layout.hasDescEn ? (
+            <>
+              {/* Arabic Description on Right */}
+              <div
+                className="cf-desc-box"
+                style={{
+                  left: '299.00pt',
+                  top: `${layout.descTop}pt`,
+                  width: '250.00pt',
+                  height: '114.20pt',
+                }}
+              >
+                <div className="cf-desc-ar-text">{product.descriptionAr}</div>
+              </div>
+
+              {/* English Description on Left */}
+              <div
+                className="cf-desc-box"
+                style={{
+                  left: '32.50pt',
+                  top: `${layout.descTop + 7.2}pt`,
+                  width: '250.00pt',
+                  height: '104.70pt',
+                }}
+              >
+                <div className="cf-desc-en-text">{product.descriptionEn}</div>
+              </div>
+            </>
+          ) : layout.hasDescAr ? (
+            <div
+              className="cf-desc-box"
+              style={{
+                left: '32.50pt',
+                top: `${layout.descTop}pt`,
+                width: '516.50pt',
+                height: '114.20pt',
+              }}
+            >
+              <div className="cf-desc-ar-text" style={{ fontSize: '12pt', lineHeight: '20pt' }}>
+                {product.descriptionAr}
+              </div>
+            </div>
+          ) : (
+            <div
+              className="cf-desc-box"
+              style={{
+                left: '32.50pt',
+                top: `${layout.descTop}pt`,
+                width: '516.50pt',
+                height: '104.70pt',
+              }}
+            >
+              <div className="cf-desc-en-text" style={{ fontSize: '13.5pt', lineHeight: '18pt' }}>
+                {product.descriptionEn}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Variant Table */}
+      {/* Header Cells */}
+      {columns.map((col) => (
+        <div
+          key={col.key}
+          className="cf-th-cell"
+          style={{
+            left: `${col.left}pt`,
+            top: `${layout.tableTop}pt`,
+            width: `${col.width}pt`,
+          }}
+        >
+          {col.title}
+        </div>
+      ))}
+
+      {/* Body Rows */}
+      {variants.map((variant, vIdx) => {
+        const rowTop = layout.tableTop + 23.80 + 2.90 + vIdx * 28.00;
+        return (
+          <div key={variant.id || vIdx}>
+            {columns.map((col) => (
+              <div
+                key={col.key}
+                className="cf-body-cell"
+                style={{
+                  left: `${col.left}pt`,
+                  top: `${rowTop}pt`,
+                  width: `${col.width}pt`,
+                  direction: col.align || 'ltr',
+                }}
+              >
+                {formatVariantCell(variant, product, col.key)}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      {/* Footer */}
+      <div className="cf-product-footer-line" />
+      <div className="cf-tax-pill">
+        {settings.footerText || 'السعر غير شامل الضريبة'}
+      </div>
+    </article>
+  );
 }
 
 function ProductCard({
@@ -290,7 +582,7 @@ function ProductEditor({ brand, product, title, onClose, onSaved, notify }) {
     }
   };
   return <Modal title={title} subtitle="يمكنك إضافة أكثر من وزن أو مقاس لنفس صفحة المنتج." onClose={onClose} wide><form className="product-editor" onSubmit={save}><div className="product-editor-main"><UploadZone preview={draft.imageUrl} onFile={uploadImage} label={uploading ? 'جارٍ رفع الصورة…' : 'اسحب صورة المنتج أو اضغط للرفع'} note="تُخزّن الصورة في Cloudinary" /><button type="button" className="text-danger" onClick={() => edit('imageUrl', '')}>إزالة الصورة</button><div className="form-grid two"><Field label="اسم المنتج بالعربي *"><input value={draft.nameAr} onChange={(event) => edit('nameAr', event.target.value)} /></Field><Field label="اسم المنتج بالإنجليزية"><input value={draft.nameEn} dir="ltr" onChange={(event) => edit('nameEn', event.target.value)} /></Field></div><div className="form-grid two"><Field label="التصنيف بالعربي"><input value={draft.categoryAr} onChange={(event) => edit('categoryAr', event.target.value)} /></Field><Field label="التصنيف بالإنجليزية"><input value={draft.categoryEn} dir="ltr" onChange={(event) => edit('categoryEn', event.target.value)} /></Field></div><div className="form-grid two"><Field label="الوصف بالعربي"><textarea value={draft.descriptionAr} onChange={(event) => edit('descriptionAr', event.target.value)} rows={3} /></Field><Field label="الوصف بالإنجليزية"><textarea value={draft.descriptionEn} dir="ltr" onChange={(event) => edit('descriptionEn', event.target.value)} rows={3} /></Field></div><Field label="الباركود"><input value={draft.barcode} dir="ltr" onChange={(event) => edit('barcode', event.target.value.replace(/\s/g, ''))} /></Field></div>
-    <section className="variants-editor"><div className="variants-title"><div><h3>الأحجام والأوزان</h3><p>كل صف يمثل مقاسًا أو وزنًا ضمن نفس صفحة المنتج.</p></div><button type="button" className="button button-ghost" onClick={() => setDraft((current) => ({ ...current, variants: [...current.variants, emptyVariant()] }))}><Icon name="plus" size={17} /> إضافة مقاس</button></div><div className="variant-edit-list">{draft.variants.map((variant, index) => <div className="variant-edit-card" key={variant.id}><div className="variant-edit-top"><b>مقاس {index + 1}</b>{draft.variants.length > 1 && <button type="button" className="text-danger" onClick={() => setDraft((current) => ({ ...current, variants: current.variants.filter((item) => item.id !== variant.id) }))}>حذف</button>}</div><div className="form-grid variant-grid"><Field label="الوزن / الحجم"><input value={variant.weight} onChange={(event) => editVariant(variant.id, 'weight', event.target.value)} placeholder="400" /></Field><Field label="الوحدة"><select value={variant.unit} onChange={(event) => editVariant(variant.id, 'unit', event.target.value)}><option>جم</option><option>كجم</option><option>مل</option><option>لتر</option><option>قطعة</option></select></Field><Field label="SKU"><input value={variant.sku} dir="ltr" onChange={(event) => editVariant(variant.id, 'sku', event.target.value)} placeholder="SKU-001" /></Field><Field label="عدد الكرتون"><input value={variant.qtyPerCarton} inputMode="numeric" onChange={(event) => editVariant(variant.id, 'qtyPerCarton', event.target.value)} /></Field><Field label={'سعر الحبة (' + mergeSettings(brand.settings).currency + ')'}><input value={variant.pricePerPiece} inputMode="decimal" onChange={(event) => editVariant(variant.id, 'pricePerPiece', event.target.value)} /></Field><Field label={'سعر الكرتون (' + mergeSettings(brand.settings).currency + ')'}><input value={variant.pricePerCarton} inputMode="decimal" onChange={(event) => editVariant(variant.id, 'pricePerCarton', event.target.value)} /></Field></div></div>)}</div></section><div className="modal-actions"><button type="button" className="button button-ghost" onClick={onClose}>إلغاء</button><button className="button button-primary" disabled={busy || uploading}>{busy ? 'جاري الحفظ…' : 'حفظ الصفحة'}</button></div></form></Modal>;
+    <section className="variants-editor"><div className="variants-title"><div><h3>الأحجام والأوزان</h3><p>كل صف يمثل مقاسًا أو وزنًا ضمن جدول أسعار صفحة المنتج.</p></div><button type="button" className="button button-ghost" onClick={() => setDraft((current) => ({ ...current, variants: [...current.variants, emptyVariant()] }))}><Icon name="plus" size={17} /> إضافة مقاس</button></div><div className="variant-edit-list">{draft.variants.map((variant, index) => <div className="variant-edit-card" key={variant.id}><div className="variant-edit-top"><b>مقاس {index + 1}</b>{draft.variants.length > 1 && <button type="button" className="text-danger" onClick={() => setDraft((current) => ({ ...current, variants: current.variants.filter((item) => item.id !== variant.id) }))}>حذف</button>}</div><div className="form-grid variant-grid"><Field label="الوزن / الحجم"><input value={variant.weight} onChange={(event) => editVariant(variant.id, 'weight', event.target.value)} placeholder="5 L أو 400" /></Field><Field label="الوحدة"><select value={variant.unit} onChange={(event) => editVariant(variant.id, 'unit', event.target.value)}><option value="">بدون وحدة</option><option>جم</option><option>كجم</option><option>مل</option><option>لتر</option><option>L</option><option>قطعة</option></select></Field><Field label="الباركود (Barcode)"><input value={variant.sku} dir="ltr" onChange={(event) => editVariant(variant.id, 'sku', event.target.value)} placeholder="8681299606443" /></Field><Field label="عدد الكرتون"><input value={variant.qtyPerCarton} inputMode="numeric" onChange={(event) => editVariant(variant.id, 'qtyPerCarton', event.target.value)} placeholder="1" /></Field><Field label={'السعر (' + mergeSettings(brand.settings).currency + ')'}><input value={variant.pricePerPiece} inputMode="decimal" onChange={(event) => editVariant(variant.id, 'pricePerPiece', event.target.value)} placeholder="7.83" /></Field><Field label={'سعر الكرتون'}><input value={variant.pricePerCarton} inputMode="decimal" onChange={(event) => editVariant(variant.id, 'pricePerCarton', event.target.value)} placeholder="اختياري" /></Field></div></div>)}</div></section><div className="modal-actions"><button type="button" className="button button-ghost" onClick={onClose}>إلغاء</button><button className="button button-primary" disabled={busy || uploading}>{busy ? 'جاري الحفظ…' : 'حفظ الصفحة'}</button></div></form></Modal>;
 }
 
 export default function Home() {
@@ -572,13 +864,23 @@ export default function Home() {
       {view === 'import' && <section className="page-shell import-page">{activeBrand ? <><div className="import-hero"><span className="hero-icon"><Icon name="upload" size={27} /></span><p className="eyebrow">EXCEL PREVIEW BEFORE INSERT</p><h2>استيراد صفحات {activeBrand.nameAr}</h2><p>ارفع Excel، راجع كل صف في الجدول، عدّل أي صفحة، ثم أدرج المجموعة بعد التأكيد.</p></div><div className="import-actions"><button className="import-card" onClick={downloadTemplate}><span><Icon name="download" size={23} /></span><div><strong>1. تنزيل قالب Excel</strong><p>يشمل البيانات الأساسية وحقل variants للمقاسات المتعددة.</p></div><Icon name="arrow" size={19} /></button><button className="import-card" onClick={() => importInput.current?.click()}><span><Icon name="upload" size={23} /></span><div><strong>2. اختيار ملف Excel</strong><p>يدعم XLSX وXLS ويعرض المعاينة قبل الإدراج.</p></div><Icon name="arrow" size={19} /></button><input ref={importInput} type="file" accept=".xlsx,.xls" onChange={readExcel} /></div>{importRows.length > 0 && <section className="import-review"><div className="review-header"><div><h3>معاينة البيانات</h3><p>{importRows.length} صف جاهز للمراجعة. زر تعديل لا يحفظ في القاعدة إلا بعد الضغط على إدراج الصفحات.</p></div><div><button className="button button-ghost" onClick={() => setImportRows([])}>إلغاء الملف</button><button className="button button-primary" disabled={busy} onClick={insertImportRows}><Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}</button></div></div><div className="table-wrap"><table><thead><tr><th>المنتج</th><th>التصنيف</th><th>المقاسات</th><th>الباركود</th><th>إجراء</th></tr></thead><tbody>{importRows.map((row, index) => <tr key={row.id}><td><strong>{row.nameAr || 'بدون اسم عربي'}</strong><small>{row.nameEn}</small></td><td>{row.categoryAr || '—'}</td><td>{row.variants.map((variant) => variant.weight ? variant.weight + ' ' + variant.unit : '—').join('، ')}</td><td dir="ltr">{row.barcode || '—'}</td><td><button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}><Icon name="edit" size={15} /> تعديل</button><button className="table-action danger" onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15} /> حذف</button></td></tr>)}</tbody></table></div></section>}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
       {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><p className="eyebrow">ACTIVE BRAND DESIGN</p><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'category', label: 'التصنيف' }, { key: 'description', label: 'الوصف' }, { key: 'prices', label: 'الأسعار' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key]} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
     </section>
-    <div className="pdf-stage" ref={pdfRef} aria-hidden="true">{activeBrand?.products?.map((product) => <ProductSheet key={product.id} brand={activeBrand} product={product} />)}</div>
+    <div className="pdf-stage" ref={pdfRef} aria-hidden="true">
+      {activeBrand && (
+        <>
+          <CatalogWelcomeSheet brand={activeBrand} />
+          {activeBrand?.products?.map((product) => (
+            <ProductSheet key={product.id} brand={activeBrand} product={product} />
+          ))}
+          <CatalogClosingSheet brand={activeBrand} />
+        </>
+      )}
+    </div>
     {brandModal && <BrandEditor brand={brandModal.id ? brandModal : null} onClose={() => setBrandModal(null)} onSaved={onBrandSaved} notify={notify} />}
     {productModal && activeBrand && <ProductEditor brand={activeBrand} product={productModal.product} title={productModal.mode === 'edit' ? 'تعديل صفحة المنتج' : productModal.mode === 'import' ? 'تعديل صف الملف المستورد' : 'صفحة منتج جديدة'} onClose={() => setProductModal(null)} onSaved={saveProduct} notify={notify} />}
     {previewModal && activeBrand && (
       <Modal
         title={'معاينة صفحة: ' + (previewModal.nameAr || previewModal.nameEn || 'صفحة الكتالوج')}
-        subtitle={'الصفحة ' + (products.findIndex((p) => p.id === previewModal.id) + 1) + ' من ' + products.length + ' في كتالوج ' + activeBrand.nameAr}
+        subtitle={'الصفحة ' + (products.findIndex((p) => p.id === previewModal.id) + 2) + ' من ' + (products.length + 2) + ' في كتالوج ' + activeBrand.nameAr}
         onClose={() => setPreviewModal(null)}
         wide
       >
@@ -590,20 +892,36 @@ export default function Home() {
     {catalogPreviewModal && activeBrand && (
       <Modal
         title={'معاينة كتالوج: ' + activeBrand.nameAr}
-        subtitle={'إجمالي ' + products.length + ' صفحة جاهزة للتصدير كملف PDF'}
+        subtitle={'إجمالي ' + (products.length + 2) + ' صفحة (صفحة الترحيب + ' + products.length + ' صفحة منتج + صفحة الختام)'}
         onClose={() => setCatalogPreviewModal(false)}
         wide
       >
         <div className="catalog-preview-scroll">
+          <div className="catalog-preview-page-wrap">
+            <div className="catalog-preview-page-header">
+              <strong>صفحة 1 (صفحة الترحيب)</strong>
+              <span>{activeBrand.nameAr}</span>
+            </div>
+            <CatalogWelcomeSheet brand={activeBrand} />
+          </div>
+
           {products.map((prod, idx) => (
             <div key={prod.id} className="catalog-preview-page-wrap">
               <div className="catalog-preview-page-header">
-                <strong>صفحة {idx + 1}</strong>
+                <strong>صفحة {idx + 2}</strong>
                 <span>{prod.nameAr || prod.nameEn}</span>
               </div>
               <ProductSheet brand={activeBrand} product={prod} />
             </div>
           ))}
+
+          <div className="catalog-preview-page-wrap">
+            <div className="catalog-preview-page-header">
+              <strong>صفحة {products.length + 2} (صفحة الختام)</strong>
+              <span>خدمتكم تسعدنا</span>
+            </div>
+            <CatalogClosingSheet brand={activeBrand} />
+          </div>
         </div>
       </Modal>
     )}

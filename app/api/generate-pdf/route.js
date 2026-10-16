@@ -101,13 +101,13 @@ export async function POST(request) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Mulish:wght@200;300;350;400;600&family=Noto+Kufi+Arabic:wght@400;500;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <style>
     ${css}
     
-    /* Override for PDF rendering */
+    /* Exact Cat Food PDF Page Geometry */
     @page {
-      size: A4 portrait;
+      size: 595.28pt 841.89pt;
       margin: 0;
     }
     
@@ -117,19 +117,19 @@ export async function POST(request) {
       print-color-adjust: exact !important;
     }
     
-    body {
-      background: white;
+    html, body {
+      background: #FEFDFA;
       margin: 0;
       padding: 0;
-      font-family: Tajawal, Arial, sans-serif;
+      font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
     }
     
-    .catalog-sheet, .catalog-page {
-      width: 210mm !important;
-      height: 297mm !important;
-      max-width: 210mm !important;
-      min-height: 297mm !important;
-      max-height: 297mm !important;
+    .catfood-page {
+      width: 595.28pt !important;
+      height: 841.89pt !important;
+      max-width: 595.28pt !important;
+      min-height: 841.89pt !important;
+      max-height: 841.89pt !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       page-break-after: always;
@@ -137,38 +137,15 @@ export async function POST(request) {
       break-after: page;
       break-inside: avoid;
       margin: 0 !important;
-      padding: 14mm 16mm 11mm !important;
+      padding: 0 !important;
       overflow: hidden !important;
       position: relative !important;
-      background: #ffffff !important;
+      background: #FEFDFA !important;
     }
     
-    .catalog-sheet:last-child, .catalog-page:last-child {
+    .catfood-page:last-child {
       page-break-after: auto;
       break-after: auto;
-    }
-
-    .sheet-image-wrap {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      overflow: hidden !important;
-    }
-
-    .sheet-image-wrap img {
-      max-width: 100% !important;
-      max-height: 100% !important;
-      width: auto !important;
-      height: auto !important;
-      object-fit: contain !important;
-      display: block !important;
-    }
-
-    .brand-badge img {
-      max-width: 100% !important;
-      max-height: 100% !important;
-      object-fit: contain !important;
-      display: block !important;
     }
   </style>
 </head>
