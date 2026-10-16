@@ -57,17 +57,40 @@ export async function POST(request) {
     await page.setRequestInterception(true);
     page.on('request', (interceptedRequest) => {
       const url = interceptedRequest.url();
-      const isEmbeddedAsset = url.startsWith('data:') || url === 'about:blank';
-      const isGoogleFont = url.startsWith('https://fonts.googleapis.com/') || url.startsWith('https://fonts.gstatic.com/');
-      const cloudinaryBase = process.env.CLOUDINARY_CLOUD_NAME
-        ? 'https://res.cloudinary.com/' + process.env.CLOUDINARY_CLOUD_NAME + '/'
-        : '';
-      const isCloudinaryAsset = cloudinaryBase && url.startsWith(cloudinaryBase);
-      if (isEmbeddedAsset || isGoogleFont || isCloudinaryAsset) {
-        interceptedRequest.continue();
-      } else {
-        interceptedRequest.abort();
+      const resourceType = interceptedRequest.resourceType();
+
+      // Allow embedded assets (data URIs), about:blank
+      if (url.startsWith('data:') || url === 'about:blank') {
+        return interceptedRequest.continue();
       }
+
+      // Block SSRF / private networks
+      if (
+        url.includes('localhost') ||
+        url.includes('127.0.0.1') ||
+        url.includes('169.254.169.254') ||
+        url.includes('0.0.0.0') ||
+        url.startsWith('file:')
+      ) {
+        return interceptedRequest.abort();
+      }
+
+      // Allow all images (Cloudinary, external image URLs, brand logos)
+      // and stylesheets, fonts, and documents
+      if (
+        resourceType === 'image' ||
+        resourceType === 'font' ||
+        resourceType === 'stylesheet' ||
+        url.startsWith('https://res.cloudinary.com/') ||
+        url.startsWith('http://res.cloudinary.com/') ||
+        url.startsWith('https://fonts.googleapis.com/') ||
+        url.startsWith('https://fonts.gstatic.com/')
+      ) {
+        return interceptedRequest.continue();
+      }
+
+      // Abort non-essential requests like scripts, trackers, websockets
+      interceptedRequest.abort();
     });
     
     // Build a complete standalone HTML page with all styles and fonts
@@ -76,42 +99,76 @@ export async function POST(request) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <style>
     ${css}
     
     /* Override for PDF rendering */
     @page {
-      size: A4;
+      size: A4 portrait;
       margin: 0;
     }
     
     *, *::before, *::after {
-      margin: 0;
-      padding: 0;
       box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     
     body {
       background: white;
       margin: 0;
       padding: 0;
+      font-family: Tajawal, Arial, sans-serif;
     }
     
-    .catalog-page {
+    .catalog-sheet, .catalog-page {
       width: 210mm !important;
       height: 297mm !important;
-      max-width: none !important;
+      max-width: 210mm !important;
       min-height: 297mm !important;
+      max-height: 297mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       page-break-after: always;
+      page-break-inside: avoid;
+      break-after: page;
+      break-inside: avoid;
       margin: 0 !important;
-      padding: 0;
-      overflow: hidden;
+      padding: 14mm 16mm 11mm !important;
+      overflow: hidden !important;
+      position: relative !important;
+      background: #ffffff !important;
     }
     
-    .catalog-page:last-child {
+    .catalog-sheet:last-child, .catalog-page:last-child {
       page-break-after: auto;
+      break-after: auto;
+    }
+
+    .sheet-image-wrap {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      overflow: hidden !important;
+    }
+
+    .sheet-image-wrap img {
+      max-width: 100% !important;
+      max-height: 100% !important;
+      width: auto !important;
+      height: auto !important;
+      object-fit: contain !important;
+      display: block !important;
+    }
+
+    .brand-badge img {
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: contain !important;
+      display: block !important;
     }
   </style>
 </head>
@@ -120,15 +177,42 @@ export async function POST(request) {
 </body>
 </html>`;
     
-    await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    
-    // A bounded font wait avoids a failed third-party request blocking PDF export.
-    await page.evaluate(async () => {
-      await Promise.race([
-        document.fonts.ready,
-        new Promise((resolve) => setTimeout(resolve, 2500)),
-      ]);
+    await page.setContent(fullHtml, { waitUntil: ['load', 'networkidle0'], timeout: 35000 }).catch(async () => {
+      // Fallback if networkidle0 times out on slow assets
+      await page.setContent(fullHtml, { waitUntil: 'load', timeout: 30000 });
     });
+    
+    // Explicitly wait for fonts and ALL <img> elements to be completely loaded and decoded
+    await page.evaluate(async () => {
+      try {
+        await Promise.race([
+          document.fonts.ready,
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ]);
+      } catch {}
+
+      const images = Array.from(document.querySelectorAll('img'));
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+          return new Promise((resolve) => {
+            let done = false;
+            const finish = () => {
+              if (!done) {
+                done = true;
+                resolve();
+              }
+            };
+            img.addEventListener('load', finish);
+            img.addEventListener('error', finish);
+            setTimeout(finish, 7000);
+          });
+        })
+      );
+    });
+
+    // Small delay to ensure browser layout and painting are committed
+    await new Promise((resolve) => setTimeout(resolve, 500));
     
     const pdfBuffer = await page.pdf({
       format: 'A4',
