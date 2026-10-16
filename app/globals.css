@@ -1885,19 +1885,19 @@ h1, h2, h3, p {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  height: 17.93pt;
-  border-radius: 9pt;
+  height: 18.50pt;
+  border-radius: 9.25pt;
   background: #00497A;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10pt;
-  min-width: 145.44pt;
-  max-width: 500pt;
+  padding: 0 12pt;
+  width: max-content;
+  max-width: 480pt;
   color: #FFF0DC;
   font-family: 'Tajawal', sans-serif;
-  font-weight: 700;
-  font-size: 12pt;
+  font-weight: 500;
+  font-size: 14pt;
   direction: ltr;
   white-space: nowrap;
   line-height: 1;
@@ -1909,7 +1909,7 @@ h1, h2, h3, p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 480pt;
+  max-width: 460pt;
 }
 
 .cf-name-ar {
@@ -1921,20 +1921,23 @@ h1, h2, h3, p {
   justify-content: center;
   text-align: center;
   font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-weight: 700;
-  font-size: 12pt;
+  font-weight: 500;
+  font-size: 14pt;
   color: #00497A;
   direction: rtl;
-  line-height: 1;
+  line-height: 1.4;
   white-space: nowrap;
   z-index: 2;
+  padding: 4pt 0;
+  overflow: visible;
+  box-sizing: border-box;
 }
 
 .cf-name-ar span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 516.50pt;
+  overflow: visible;
+  line-height: 1.4;
+  display: inline-block;
+  padding: 2pt 6pt;
 }
 
 .cf-desc-box {
@@ -1957,10 +1960,14 @@ h1, h2, h3, p {
   font-size: 11pt;
   color: #FFF0DC;
   direction: rtl;
-  line-height: 16pt;
+  text-align: justify;
+  text-justify: inter-word;
+  line-height: 17pt;
   word-break: break-word;
   overflow-wrap: break-word;
   width: 100%;
+  padding: 0 6pt;
+  box-sizing: border-box;
 }
 
 .cf-desc-en-text {
@@ -1985,7 +1992,7 @@ h1, h2, h3, p {
   justify-content: center;
   text-align: center;
   font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-weight: 500;
+  font-weight: 400;
   font-size: 13.5pt;
   color: #FFF0DC;
   direction: rtl;
@@ -2007,7 +2014,7 @@ h1, h2, h3, p {
   justify-content: center;
   text-align: center;
   font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-weight: 400;
+  font-weight: 350;
   font-size: 13.5pt;
   color: #00497A;
   direction: ltr;
