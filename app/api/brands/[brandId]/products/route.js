@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createProducts, getBrand } from '../../../../../lib/database';
+import { createProducts, getBrand, reorderProducts } from '../../../../../lib/database';
 
 export const runtime = 'nodejs';
 
@@ -18,6 +18,22 @@ export async function POST(request, context) {
     if (!items.length) return NextResponse.json({ error: 'لا توجد منتجات للحفظ.' }, { status: 400 });
     const products = await createProducts(brandId, items);
     return NextResponse.json({ products }, { status: 201 });
+  } catch (error) {
+    return message(error);
+  }
+}
+
+export async function PUT(request, context) {
+  try {
+    const { brandId } = await context.params;
+    const brand = await getBrand(brandId, false);
+    if (!brand) return NextResponse.json({ error: 'البراند غير موجود.' }, { status: 404 });
+    const body = await request.json();
+    if (!Array.isArray(body.productIds)) {
+      return NextResponse.json({ error: 'productIds array is required.' }, { status: 400 });
+    }
+    await reorderProducts(brandId, body.productIds);
+    return NextResponse.json({ success: true });
   } catch (error) {
     return message(error);
   }
