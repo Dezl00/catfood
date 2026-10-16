@@ -33,10 +33,19 @@ export async function POST(request) {
       executablePath = await chromium.executablePath(packUrl);
       args = chromium.args;
       headless = chromium.headless;
-    } else {
-      // Local development
+      // Local development with fast launch flags
       puppeteer = await import('puppeteer').then(mod => mod.default || mod);
-      args = ['--no-sandbox', '--disable-setuid-sandbox'];
+      args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-extensions',
+        '--mute-audio',
+      ];
       headless = true;
       const browserCandidates = [
         process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -154,42 +163,35 @@ export async function POST(request) {
 </body>
 </html>`;
     
-    await page.setContent(fullHtml, { waitUntil: ['load', 'networkidle0'], timeout: 35000 }).catch(async () => {
-      // Fallback if networkidle0 times out on slow assets
-      await page.setContent(fullHtml, { waitUntil: 'load', timeout: 30000 });
-    });
+    await page.setContent(fullHtml, { waitUntil: 'load', timeout: 20000 });
     
-    // Explicitly wait for fonts and ALL <img> elements to be completely loaded and decoded
+    // Explicitly wait for fonts and decode all images in parallel
     await page.evaluate(async () => {
       try {
         await Promise.race([
           document.fonts.ready,
-          new Promise((resolve) => setTimeout(resolve, 3000)),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
         ]);
       } catch {}
 
       const images = Array.from(document.querySelectorAll('img'));
       await Promise.all(
-        images.map((img) => {
-          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-          return new Promise((resolve) => {
-            let done = false;
-            const finish = () => {
-              if (!done) {
-                done = true;
-                resolve();
-              }
-            };
-            img.addEventListener('load', finish);
-            img.addEventListener('error', finish);
-            setTimeout(finish, 7000);
-          });
+        images.map(async (img) => {
+          if (img.complete && img.naturalWidth > 0) return;
+          try {
+            if (img.decode) {
+              await Promise.race([
+                img.decode(),
+                new Promise((resolve) => setTimeout(resolve, 2000)),
+              ]);
+            }
+          } catch {}
         })
       );
     });
 
-    // Small delay to ensure browser layout and painting are committed
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Brief delay to ensure painting is complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
     
     const pdfBuffer = await page.pdf({
       format: 'A4',

@@ -94,18 +94,18 @@ function estimateDescHeight(product, hasBoth) {
   const enText = String(product.descriptionEn || '').trim();
   if (!arText && !enText) return 0;
 
-  const charsPerLineAr = hasBoth ? 34 : 75;
-  const charsPerLineEn = hasBoth ? 30 : 65;
+  const charsPerLineAr = hasBoth ? 30 : 65;
+  const charsPerLineEn = hasBoth ? 28 : 60;
 
   const linesAr = arText ? arText.split('\n').reduce((acc, line) => acc + Math.max(1, Math.ceil((line.length || 1) / charsPerLineAr)), 0) : 0;
   const linesEn = enText ? enText.split('\n').reduce((acc, line) => acc + Math.max(1, Math.ceil((line.length || 1) / charsPerLineEn)), 0) : 0;
 
-  const heightAr = linesAr > 0 ? 24 + linesAr * 18 : 0;
-  const heightEn = linesEn > 0 ? 24 + linesEn * 15.6 : 0;
+  const heightAr = linesAr > 0 ? 26 + linesAr * 20 : 0;
+  const heightEn = linesEn > 0 ? 26 + linesEn * 18 : 0;
 
   const rawHeight = Math.max(heightAr, heightEn);
-  // Flexible: min 46pt, max 160pt
-  return Math.min(160, Math.max(46, Math.round(rawHeight)));
+  // Flexible: min 52pt, max 165pt
+  return Math.min(165, Math.max(52, Math.round(rawHeight)));
 }
 
 function getTableColumns(visible, variants = []) {
@@ -116,44 +116,45 @@ function getTableColumns(visible, variants = []) {
   const showCartonPrice = visible?.cartonPrice !== false && variants.some((v) => Boolean(String(v.pricePerCarton || '').trim()));
 
   // If carton price is enabled and present, render 5-column layout across 516.50pt
+  // Carton count widened to 120pt, Weight reduced to 70pt to prevent text clipping
   if (showCartonPrice) {
-    const cols = [];
-    if (showBarcode) cols.push({ key: 'barcode', title: 'باركود', weight: 1.45, align: 'ltr' });
-    cols.push({ key: 'cartonPrice', title: 'سعر الكرتون', weight: 1.0, align: 'ltr' });
-    if (showPrice) cols.push({ key: 'price', title: 'سعر الحبة', weight: 1.0, align: 'ltr' });
-    if (showCarton) cols.push({ key: 'carton', title: 'العدد بالكرتون', weight: 1.0, align: 'ltr' });
-    if (showWeight) cols.push({ key: 'weight', title: 'الوزن', weight: 1.05, align: 'ltr' });
+    const barcodeCol = 124.50;
+    const cartonPriceCol = 96.00;
+    const priceCol = 86.00;
+    const cartonCol = 120.00;
+    const weightCol = 70.00;
 
-    const gap = 5.0;
-    const totalGaps = Math.max(0, cols.length - 1) * gap;
-    const availableContentWidth = 516.50 - totalGaps;
-    const totalWeight = cols.reduce((sum, c) => sum + c.weight, 0);
-
-    let currentLeft = 32.50;
-    return cols.map((col) => {
-      const width = Number(((col.weight / totalWeight) * availableContentWidth).toFixed(2));
-      const left = Number(currentLeft.toFixed(2));
-      currentLeft += width + gap;
-      return { ...col, left, width };
-    });
-  }
-
-  // Exact Cat Food spec numbers when standard 4 columns are visible
-  if (showWeight && showCarton && showPrice && showBarcode) {
     return [
-      { key: 'barcode', title: 'باركود', left: 32.50, width: 170.20, align: 'ltr' },
-      { key: 'price', title: 'السعر', left: 207.10, width: 110.70, align: 'ltr' },
-      { key: 'carton', title: 'العدد بالكرتون', left: 323.00, width: 110.70, align: 'ltr' },
-      { key: 'weight', title: 'الوزن', left: 438.40, width: 110.60, align: 'ltr' },
+      { key: 'barcode', title: 'باركود', left: 32.50, width: barcodeCol, align: 'ltr' },
+      { key: 'cartonPrice', title: 'سعر الكرتون', left: 32.50 + barcodeCol + 5.0, width: cartonPriceCol, align: 'ltr' },
+      { key: 'price', title: 'سعر الحبة', left: 32.50 + barcodeCol + 5.0 + cartonPriceCol + 5.0, width: priceCol, align: 'ltr' },
+      { key: 'carton', title: 'العدد بالكرتون', left: 32.50 + barcodeCol + 5.0 + cartonPriceCol + 5.0 + priceCol + 5.0, width: cartonCol, align: 'ltr' },
+      { key: 'weight', title: 'الوزن', left: 32.50 + barcodeCol + 5.0 + cartonPriceCol + 5.0 + priceCol + 5.0 + cartonCol + 5.0, width: weightCol, align: 'ltr' },
     ];
   }
 
-  // Reflow logic for hidden columns
+  // Exact Cat Food spec numbers when standard 4 columns are visible
+  // Carton count widened to 138pt, Weight reduced to 82pt
+  if (showWeight && showCarton && showPrice && showBarcode) {
+    const barcodeCol = 169.50;
+    const priceCol = 112.00;
+    const cartonCol = 138.00;
+    const weightCol = 82.00;
+
+    return [
+      { key: 'barcode', title: 'باركود', left: 32.50, width: barcodeCol, align: 'ltr' },
+      { key: 'price', title: 'السعر', left: 32.50 + barcodeCol + 5.0, width: priceCol, align: 'ltr' },
+      { key: 'carton', title: 'العدد بالكرتون', left: 32.50 + barcodeCol + 5.0 + priceCol + 5.0, width: cartonCol, align: 'ltr' },
+      { key: 'weight', title: 'الوزن', left: 32.50 + barcodeCol + 5.0 + priceCol + 5.0 + cartonCol + 5.0, width: weightCol, align: 'ltr' },
+    ];
+  }
+
+  // Reflow logic for hidden columns with carton column widened
   const activeCols = [];
-  if (showBarcode) activeCols.push({ key: 'barcode', title: 'باركود', weight: 1.54, align: 'ltr' });
+  if (showBarcode) activeCols.push({ key: 'barcode', title: 'باركود', weight: 1.5, align: 'ltr' });
   if (showPrice) activeCols.push({ key: 'price', title: 'السعر', weight: 1.0, align: 'ltr' });
-  if (showCarton) activeCols.push({ key: 'carton', title: 'العدد بالكرتون', weight: 1.0, align: 'ltr' });
-  if (showWeight) activeCols.push({ key: 'weight', title: 'الوزن', weight: 1.0, align: 'ltr' });
+  if (showCarton) activeCols.push({ key: 'carton', title: 'العدد بالكرتون', weight: 1.4, align: 'ltr' });
+  if (showWeight) activeCols.push({ key: 'weight', title: 'الوزن', weight: 0.75, align: 'ltr' });
 
   const gap = 5.0;
   const totalGaps = Math.max(0, activeCols.length - 1) * gap;
@@ -319,12 +320,12 @@ function ProductSheet({ brand, product, compact = false }) {
       {/* Product Names */}
       {product.nameAr && (
         <div className="cf-name-ar" style={{ top: `${layout.nameArTop}pt` }}>
-          {product.nameAr}
+          <span>{product.nameAr}</span>
         </div>
       )}
       {product.nameEn && (
         <div className="cf-name-pill" style={{ top: `${layout.pillTop}pt` }}>
-          {product.nameEn}
+          <span>{product.nameEn}</span>
         </div>
       )}
 
@@ -341,7 +342,7 @@ function ProductSheet({ brand, product, compact = false }) {
                   top: `${layout.descTop}pt`,
                   width: '250.00pt',
                   height: `${layout.descHeight}pt`,
-                  borderRadius: `${Math.min(36.9, layout.descHeight / 2)}pt`,
+                  borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
                 }}
               >
                 <div className="cf-desc-ar-text">{product.descriptionAr}</div>
@@ -355,7 +356,7 @@ function ProductSheet({ brand, product, compact = false }) {
                   top: `${layout.descTop}pt`,
                   width: '250.00pt',
                   height: `${layout.descHeight}pt`,
-                  borderRadius: `${Math.min(36.9, layout.descHeight / 2)}pt`,
+                  borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
                 }}
               >
                 <div className="cf-desc-en-text">{product.descriptionEn}</div>
@@ -369,10 +370,10 @@ function ProductSheet({ brand, product, compact = false }) {
                 top: `${layout.descTop}pt`,
                 width: '516.50pt',
                 height: `${layout.descHeight}pt`,
-                borderRadius: `${Math.min(36.9, layout.descHeight / 2)}pt`,
+                borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
               }}
             >
-              <div className="cf-desc-ar-text" style={{ fontSize: '12pt', lineHeight: '20pt' }}>
+              <div className="cf-desc-ar-text" style={{ fontSize: '11.5pt', lineHeight: '18pt' }}>
                 {product.descriptionAr}
               </div>
             </div>
@@ -384,10 +385,10 @@ function ProductSheet({ brand, product, compact = false }) {
                 top: `${layout.descTop}pt`,
                 width: '516.50pt',
                 height: `${layout.descHeight}pt`,
-                borderRadius: `${Math.min(36.9, layout.descHeight / 2)}pt`,
+                borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
               }}
             >
-              <div className="cf-desc-en-text" style={{ fontSize: '13.5pt', lineHeight: '18pt' }}>
+              <div className="cf-desc-en-text" style={{ fontSize: '12pt', lineHeight: '17pt' }}>
                 {product.descriptionEn}
               </div>
             </div>
@@ -920,17 +921,46 @@ export default function Home() {
     setBusy(true);
     try {
       let css = '';
-      for (const sheet of Array.from(document.styleSheets)) try { css += Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\n'); } catch {}
-      const result = await fetch('/api/generate-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ html: pdfRef.current.innerHTML, css }) });
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules)) {
+            const txt = rule.cssText;
+            if (
+              txt.includes('.catfood-page') ||
+              txt.includes('.cf-') ||
+              txt.includes('@page') ||
+              txt.includes('Tajawal') ||
+              txt.includes('Cairo') ||
+              txt.includes('Mulish') ||
+              txt.includes('Noto Kufi')
+            ) {
+              css += txt + '\n';
+            }
+          }
+        } catch {}
+      }
+      if (!css.trim()) {
+        for (const sheet of Array.from(document.styleSheets)) try { css += Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\n'); } catch {}
+      }
+      const result = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: pdfRef.current.innerHTML, css }),
+      });
       if (!result.ok) throw new Error((await result.json().catch(() => ({}))).error || 'تعذر إنشاء PDF.');
-      const url = URL.createObjectURL(await result.blob());
+      const blob = await result.blob();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = (activeBrand.nameEn || activeBrand.nameAr || 'catalog').replace(/\s+/g, '-') + '-catalog.pdf';
       a.click();
       URL.revokeObjectURL(url);
       notify('تم تصدير كتالوج ' + activeBrand.nameAr + ' بصيغة PDF بنجاح.');
-    } catch (error) { notify(error.message, 'warning'); } finally { setBusy(false); }
+    } catch (error) {
+      notify(error.message, 'warning');
+    } finally {
+      setBusy(false);
+    }
   };
   const updateBrandSettings = async (event) => {
     event.preventDefault();
