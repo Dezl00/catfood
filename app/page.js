@@ -77,7 +77,7 @@ function UploadZone({ preview, onFile, label, note, compact = false }) {
   </div>;
 }
 
-function fitDescriptions(container) {
+function expandDescriptionBoxes(container) {
   if (!container) return;
   const boxes = container.querySelectorAll('.cf-desc-box');
   boxes.forEach((box) => {
@@ -87,20 +87,14 @@ function fitDescriptions(container) {
     if (!textEl) return;
 
     const isArabic = Boolean(textAr);
-    let fontSize = isArabic ? 11.0 : 13.0;
-    const minSize = 8.5;
+    // Preserves original font sizes: 11pt for Arabic, 13pt for English. NEVER shrinks text.
+    textEl.style.fontSize = isArabic ? '11pt' : '13pt';
+    textEl.style.lineHeight = isArabic ? '18pt' : '15.6pt';
 
-    textEl.style.fontSize = `${fontSize}pt`;
-    textEl.style.lineHeight = `${isArabic ? 18.0 : 15.6}pt`;
-
-    const maxHeight = box.clientHeight || parseFloat(box.style.height) || (isArabic ? 114.2 : 104.7);
-
-    while ((textEl.scrollHeight > maxHeight || box.scrollHeight > box.clientHeight) && fontSize > minSize) {
-      fontSize = Math.max(minSize, Number((fontSize - 0.5).toFixed(1)));
-      const linePitch = isArabic ? Number((fontSize * (18 / 11)).toFixed(2)) : Number((fontSize * (15.6 / 13)).toFixed(2));
-      textEl.style.fontSize = `${fontSize}pt`;
-      textEl.style.lineHeight = `${linePitch}pt`;
-      if (fontSize <= minSize) break;
+    const currentHeight = parseFloat(box.style.height) || box.clientHeight || (isArabic ? 114.2 : 104.7);
+    if (textEl.scrollHeight > currentHeight - 12) {
+      const neededHeight = Number((textEl.scrollHeight + 26).toFixed(1));
+      box.style.height = `${neededHeight}pt`;
     }
   });
 }
@@ -189,7 +183,7 @@ function ProductSheet({ brand, product, variants: customVariants }) {
 
   useEffect(() => {
     if (sheetRef.current) {
-      fitDescriptions(sheetRef.current);
+      expandDescriptionBoxes(sheetRef.current);
     }
   }, [product.descriptionAr, product.descriptionEn, layout.descHeight]);
 
@@ -253,9 +247,9 @@ function ProductSheet({ brand, product, variants: customVariants }) {
                 className="cf-desc-box"
                 style={{
                   left: '32.50pt',
-                  top: `${layout.descTop + (layout.descHeight - 104.7) / 2}pt`,
+                  top: `${layout.descTop + (layout.descHeight - (layout.enDescHeight || 104.7)) / 2}pt`,
                   width: '250.00pt',
-                  height: '104.7pt',
+                  height: `${layout.enDescHeight || 104.7}pt`,
                   borderRadius: '36.9pt',
                 }}
               >
@@ -282,9 +276,9 @@ function ProductSheet({ brand, product, variants: customVariants }) {
               className="cf-desc-box"
               style={{
                 left: '32.50pt',
-                top: `${layout.descTop + (layout.descHeight - 104.7) / 2}pt`,
+                top: `${layout.descTop}pt`,
                 width: '516.50pt',
-                height: '104.7pt',
+                height: `${layout.descHeight}pt`,
                 borderRadius: '36.9pt',
               }}
             >
@@ -362,7 +356,6 @@ function ProductCard({
   onDrop,
   onDragEnd,
 }) {
-  const variant = product.variants?.[0] || {};
   return (
     <article
       className={['product-card', isDragging && 'is-dragging', isDragOver && 'is-drag-over'].filter(Boolean).join(' ')}
@@ -374,7 +367,7 @@ function ProductCard({
     >
       <div className="product-card-topbar">
         <div className="drag-handle" title="اسحب لإعادة ترتيب موضع الصفحة في الكتالوج">
-          <Icon name="grip" size={15} />
+          <Icon name="grip" size={14} />
           <span className="page-order-badge">صفحة {index + 1}</span>
         </div>
         <div className="card-quick-order">
@@ -400,34 +393,48 @@ function ProductCard({
           </button>
         </div>
       </div>
-      <div className="product-card-body">
-        <div className="product-card-image" onClick={onPreview} title="معاينة شكل الصفحة A4" style={{ cursor: 'pointer' }}>
-          {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <Icon name="image" size={31} />}
-        </div>
-        <div className="product-card-content">
-          <div className="product-card-heading">
-            <div>
-              <h3>{product.nameAr || product.nameEn || 'صفحة بدون اسم'}</h3>
-              <p>{product.nameEn || 'Unnamed Page'}</p>
-            </div>
-            <button className="icon-button" onClick={onEdit} aria-label="تعديل الصفحة" title="تعديل"><Icon name="edit" size={16} /></button>
+
+      <div className="product-card-hero" onClick={onPreview} title="معاينة شكل الصفحة A4" style={{ cursor: 'pointer' }}>
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt={product.nameAr || ''} loading="lazy" />
+        ) : (
+          <div className="product-card-placeholder">
+            <Icon name="image" size={36} />
+            <span>معاينة الصفحة</span>
           </div>
-          <div className="card-meta">
-            <span>{product.variants?.length || 0} مقاسات</span>
-            {product.barcode && <span dir="ltr">#{product.barcode}</span>}
-          </div>
-          <strong className="card-price">
-            {variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : 'وزن افتراضي'}{' '}
-            <small>{price(variant.pricePerPiece, mergeSettings(brand?.settings).currency)}</small>
-            {variant.pricePerCarton ? <small style={{ color: '#00497A', fontWeight: 700, marginInlineStart: '4px' }}>· كرتون: {price(variant.pricePerCarton, mergeSettings(brand?.settings).currency)}</small> : null}
-          </strong>
-        </div>
+        )}
+        <span className="card-preview-tag">
+          <Icon name="eye" size={12} /> معاينة A4
+        </span>
       </div>
-      <div className="card-actions">
-        <button type="button" onClick={onPreview} title="معاينة شكل الصفحة A4"><Icon name="eye" size={14} /> معاينة</button>
-        <button type="button" onClick={onEdit} title="تعديل"><Icon name="edit" size={14} /> تعديل</button>
-        <button type="button" onClick={onDuplicate} title="نسخ / تكرار الصفحة"><Icon name="copy" size={14} /> تكرار</button>
-        <button type="button" className="danger" onClick={onDelete} title="حذف الصفحة"><Icon name="trash" size={14} /> حذف</button>
+
+      <div className="product-card-content">
+        <h3 className="product-card-title" title={product.nameAr}>
+          {product.nameAr || 'صفحة بدون اسم'}
+        </h3>
+        <p className="product-card-sub" title={product.nameEn}>
+          {product.nameEn || '—'}
+        </p>
+        {product.barcode && (
+          <div className="product-card-barcode-wrap">
+            <span className="product-card-barcode" dir="ltr">#{product.barcode}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="product-card-footer">
+        <button type="button" className="btn-card-action" onClick={onPreview} title="معاينة شكل الصفحة A4">
+          <Icon name="eye" size={14} /> معاينة
+        </button>
+        <button type="button" className="btn-card-action" onClick={onEdit} title="تعديل صفحة المنتج">
+          <Icon name="edit" size={14} /> تعديل
+        </button>
+        <button type="button" className="btn-card-action" onClick={onDuplicate} title="تكرار الصفحة">
+          <Icon name="copy" size={14} /> تكرار
+        </button>
+        <button type="button" className="btn-card-action danger" onClick={onDelete} title="حذف الصفحة">
+          <Icon name="trash" size={14} /> حذف
+        </button>
       </div>
     </article>
   );
@@ -452,6 +459,115 @@ function Modal({ title, subtitle, children, onClose, wide = false }) {
         </header>
         {children}
       </section>
+    </div>
+  );
+}
+
+function ScaledPageWrapper({ children, scale }) {
+  const widthPt = 595.28;
+  const heightPt = 841.89;
+
+  return (
+    <div
+      className="scaled-page-wrapper"
+      style={{
+        width: `${widthPt * scale}pt`,
+        height: `${heightPt * scale}pt`,
+      }}
+    >
+      <div
+        className="scaled-page-inner"
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: 'top center',
+          width: `${widthPt}pt`,
+          height: `${heightPt}pt`,
+          marginLeft: `-${widthPt / 2}pt`,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PreviewToolbar({ zoom, setZoom, autoScale }) {
+  const currentScale = typeof zoom === 'number' ? zoom : autoScale;
+  return (
+    <div className="catalog-preview-toolbar">
+      <div className="zoom-toggle-group">
+        <button
+          type="button"
+          className={['zoom-pill-btn', zoom === 'fit' && 'is-active'].filter(Boolean).join(' ')}
+          onClick={() => setZoom('fit')}
+        >
+          ملاءمة الشاشة (عرض كامل)
+        </button>
+        <button
+          type="button"
+          className={['zoom-pill-btn', zoom === 1 && 'is-active'].filter(Boolean).join(' ')}
+          onClick={() => setZoom(1)}
+        >
+          الحجم الكامل (100%)
+        </button>
+      </div>
+      <div className="zoom-controls">
+        <button
+          type="button"
+          className="zoom-step-btn"
+          onClick={() => setZoom(Math.max(0.35, Number((currentScale - 0.15).toFixed(2))))}
+          title="تصغير"
+        >
+          -
+        </button>
+        <span className="zoom-display-text">{Math.round(currentScale * 100)}%</span>
+        <button
+          type="button"
+          className="zoom-step-btn"
+          onClick={() => setZoom(Math.min(2.0, Number((currentScale + 0.15).toFixed(2))))}
+          title="تكبير"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmModal({ config, onClose }) {
+  if (!config) return null;
+  const { title, message, confirmText = 'تأكيد الحذف', cancelText = 'إلغاء', tone = 'danger', onConfirm } = config;
+
+  return (
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) onClose();
+      }}
+    >
+      <div className="confirm-modal-box" role="dialog" aria-modal="true" aria-label={title}>
+        <div className={['confirm-icon-circle', tone === 'danger' ? 'is-danger' : 'is-primary'].filter(Boolean).join(' ')}>
+          <Icon name={tone === 'danger' ? 'trash' : 'check'} size={24} />
+        </div>
+        <h3>{title}</h3>
+        <p>{message}</p>
+        <div className="confirm-modal-actions">
+          <button type="button" className="button button-ghost" onClick={onClose}>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            className={['button', tone === 'danger' ? 'button-danger' : 'button-primary'].join(' ')}
+            onClick={() => {
+              if (onConfirm) onConfirm();
+              onClose();
+            }}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -649,6 +765,22 @@ export default function Home() {
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [previewZoom, setPreviewZoom] = useState('fit');
+  const [catalogZoom, setCatalogZoom] = useState('fit');
+  const [windowWidth, setWindowWidth] = useState(800);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const autoScale = Math.min(1.0, Math.max(0.35, (windowWidth - 36) / 794));
+  const effectivePreviewScale = typeof previewZoom === 'number' ? previewZoom : autoScale;
+  const effectiveCatalogScale = typeof catalogZoom === 'number' ? catalogZoom : autoScale;
+
   const importInput = useRef(null);
   const pdfRef = useRef(null);
   const activeIdRef = useRef(null);
@@ -753,13 +885,21 @@ export default function Home() {
       notify(error.message, 'warning');
     }
   };
-  const removeProduct = async (product) => {
-    if (!activeBrand || !window.confirm('حذف صفحة «' + (product.nameAr || product.nameEn) + '»؟')) return;
-    try {
-      await request('/api/products/' + product.id + '?brandId=' + activeBrand.id, { method: 'DELETE' });
-      notify('تم حذف الصفحة.');
-      await refresh(activeBrand.id);
-    } catch (error) { notify(error.message, 'warning'); }
+  const removeProduct = (product) => {
+    if (!activeBrand) return;
+    setConfirmModal({
+      title: 'حذف صفحة المنتج',
+      message: 'هل أنت متأكد من حذف صفحة «' + (product.nameAr || product.nameEn || 'المنتج') + '»؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmText: 'حذف الصفحة',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await request('/api/products/' + product.id + '?brandId=' + activeBrand.id, { method: 'DELETE' });
+          notify('تم حذف الصفحة.');
+          await refresh(activeBrand.id);
+        } catch (error) { notify(error.message, 'warning'); }
+      },
+    });
   };
   const handleDragStart = (e, index) => {
     setDraggedIndex(index);
@@ -824,17 +964,24 @@ export default function Home() {
       setSavingOrder(false);
     }
   };
-  const removeBrand = async (brand) => {
-    if (!window.confirm('حذف براند «' + brand.nameAr + '» وكل صفحاته؟')) return;
-    try {
-      await request('/api/brands/' + brand.id, { method: 'DELETE' });
-      const list = await loadBrands();
-      if (activeBrand?.id === brand.id) {
-        try { localStorage.removeItem(CACHE_ACTIVE_KEY); } catch {}
-        if (list[0]) await loadBrand(list[0].id); else setActiveBrand(null);
-      }
-      notify('تم حذف البراند.');
-    } catch (error) { notify(error.message, 'warning'); }
+  const removeBrand = (brand) => {
+    setConfirmModal({
+      title: 'حذف البراند',
+      message: 'هل أنت متأكد من حذف براند «' + brand.nameAr + '» وكافة صفحاته (' + (brand.productCount || 0) + ' صفحة)؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmText: 'حذف البراند نهائياً',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await request('/api/brands/' + brand.id, { method: 'DELETE' });
+          const list = await loadBrands();
+          if (activeBrand?.id === brand.id) {
+            try { localStorage.removeItem(CACHE_ACTIVE_KEY); } catch {}
+            if (list[0]) await loadBrand(list[0].id); else setActiveBrand(null);
+          }
+          notify('تم حذف البراند.');
+        } catch (error) { notify(error.message, 'warning'); }
+      },
+    });
   };
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
@@ -928,7 +1075,7 @@ export default function Home() {
       await new Promise((resolve) => setTimeout(resolve, 60));
       await new Promise((resolve) => requestAnimationFrame(resolve));
       if (pdfRef.current) {
-        fitDescriptions(pdfRef.current);
+        expandDescriptionBoxes(pdfRef.current);
       }
       let css = '';
       for (const style of Array.from(document.querySelectorAll('style'))) {
@@ -1028,14 +1175,16 @@ export default function Home() {
         onClose={() => setPreviewModal(null)}
         wide
       >
+        <PreviewToolbar zoom={previewZoom} setZoom={setPreviewZoom} autoScale={autoScale} />
         <div className="sheet-preview-modal-body">
           {paginateProductVariants(previewModal, mergeSettings(activeBrand.settings)).map((pageVariants, pIdx) => (
-            <ProductSheet
-              key={`${previewModal.id}-p${pIdx}`}
-              brand={activeBrand}
-              product={previewModal}
-              variants={pageVariants}
-            />
+            <ScaledPageWrapper key={`${previewModal.id}-p${pIdx}`} scale={effectivePreviewScale}>
+              <ProductSheet
+                brand={activeBrand}
+                product={previewModal}
+                variants={pageVariants}
+              />
+            </ScaledPageWrapper>
           ))}
         </div>
       </Modal>
@@ -1049,13 +1198,16 @@ export default function Home() {
           onClose={() => setCatalogPreviewModal(false)}
           wide
         >
+          <PreviewToolbar zoom={catalogZoom} setZoom={setCatalogZoom} autoScale={autoScale} />
           <div className="catalog-preview-scroll">
             <div className="catalog-preview-page-wrap">
               <div className="catalog-preview-page-header">
                 <strong>صفحة 1 (صفحة الترحيب)</strong>
                 <span>{activeBrand.nameAr}</span>
               </div>
-              <CatalogWelcomeSheet brand={activeBrand} />
+              <ScaledPageWrapper scale={effectiveCatalogScale}>
+                <CatalogWelcomeSheet brand={activeBrand} />
+              </ScaledPageWrapper>
             </div>
 
             {products.map((prod) => {
@@ -1068,7 +1220,9 @@ export default function Home() {
                       <strong>صفحة {currentPage}</strong>
                       <span>{prod.nameAr || prod.nameEn}{pages.length > 1 ? ` (صفحة ${pIdx + 1} من ${pages.length})` : ''}</span>
                     </div>
-                    <ProductSheet brand={activeBrand} product={prod} variants={pageVariants} />
+                    <ScaledPageWrapper scale={effectiveCatalogScale}>
+                      <ProductSheet brand={activeBrand} product={prod} variants={pageVariants} />
+                    </ScaledPageWrapper>
                   </div>
                 );
               });
@@ -1079,7 +1233,9 @@ export default function Home() {
                 <strong>صفحة {pageNum} (صفحة الختام)</strong>
                 <span>خدمتكم تسعدنا</span>
               </div>
-              <CatalogClosingSheet brand={activeBrand} />
+              <ScaledPageWrapper scale={effectiveCatalogScale}>
+                <CatalogClosingSheet brand={activeBrand} />
+              </ScaledPageWrapper>
             </div>
           </div>
         </Modal>
@@ -1106,6 +1262,7 @@ export default function Home() {
         </button>
       ))}
     </nav>
+    {confirmModal && <ConfirmModal config={confirmModal} onClose={() => setConfirmModal(null)} />}
     {toast && <div className={['toast', toast.tone].join(' ')} role="status"><Icon name={toast.tone === 'success' ? 'check' : 'settings'} size={18} />{toast.message}<button onClick={() => setToast(null)} aria-label="إغلاق"><Icon name="close" size={16} /></button></div>}
   </main>;
 }
@@ -1115,7 +1272,45 @@ function Stat({ icon, label, value }) {
 }
 
 function BrandCard({ brand, selected, onOpen, onEdit, onDelete }) {
-  return <article className={['brand-card', selected && 'selected'].filter(Boolean).join(' ')}><div className="brand-card-top"><BrandBadge brand={brand} large /><button className="icon-button" onClick={onEdit} aria-label="تعديل البراند"><Icon name="edit" size={17} /></button></div><h3>{brand.nameAr}</h3><p>{brand.nameEn || 'بدون اسم إنجليزي'}</p><div className="brand-card-meta"><span><Icon name="file" size={15} /> {brand.productCount} صفحة</span><span>مخزن على Neon</span></div><div className="brand-card-actions"><button className="button button-primary" onClick={onOpen}>فتح البراند <Icon name="arrow" size={16} /></button>{onDelete && <button className="mini-danger" onClick={onDelete} aria-label="حذف البراند"><Icon name="trash" size={17} /></button>}</div></article>;
+  return (
+    <article className={['brand-card', selected && 'selected'].filter(Boolean).join(' ')}>
+      <div className="brand-card-hero" onClick={onOpen} style={{ cursor: 'pointer' }} title="فتح كتالوج البراند">
+        {brand?.logoUrl ? (
+          <img src={brand.logoUrl} alt={brand.nameAr} className="brand-card-logo-img" />
+        ) : (
+          <div className="brand-card-logo-fallback">
+            <b>{(brand?.nameAr || brand?.nameEn || 'B').slice(0, 1)}</b>
+          </div>
+        )}
+        {selected && <span className="brand-active-tag">البراند النشط</span>}
+      </div>
+
+      <div className="brand-card-info">
+        <div className="brand-card-titles">
+          <h3>{brand.nameAr}</h3>
+          <p>{brand.nameEn || 'بدون اسم إنجليزي'}</p>
+        </div>
+        <div className="brand-card-badge">
+          <Icon name="file" size={13} />
+          <span>{brand.productCount || 0} صفحة</span>
+        </div>
+      </div>
+
+      <div className="brand-card-actions">
+        <button className="button button-primary" onClick={onOpen}>
+          فتح البراند <Icon name="arrow" size={15} />
+        </button>
+        <button className="button button-ghost" onClick={onEdit} aria-label="تعديل البراند" title="تعديل البراند">
+          <Icon name="edit" size={15} />
+        </button>
+        {onDelete && (
+          <button className="mini-danger" onClick={onDelete} aria-label="حذف البراند" title="حذف البراند">
+            <Icon name="trash" size={16} />
+          </button>
+        )}
+      </div>
+    </article>
+  );
 }
 
 function EmptyState({ onNew, onImport }) {

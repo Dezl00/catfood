@@ -94,7 +94,7 @@ describe('autoDetectMapping', () => {
 });
 
 describe('getTableColumns', () => {
-  it('computes proportional widths matching spec for 4 columns within 1pt', () => {
+  it('computes proportional widths giving carton more space and reducing weight', () => {
     const visible = { carton: true, prices: true, barcode: true, cartonPrice: false };
     const cols = getTableColumns(visible);
 
@@ -105,10 +105,10 @@ describe('getTableColumns', () => {
     const carton = cols.find((c) => c.key === 'carton');
     const weight = cols.find((c) => c.key === 'weight');
 
-    assert.ok(Math.abs(barcode.width - 170.2) < 1.0, `barcode width ${barcode.width} should be within 1pt of 170.2`);
-    assert.ok(Math.abs(price.width - 110.7) < 1.0, `price width ${price.width} should be within 1pt of 110.7`);
-    assert.ok(Math.abs(carton.width - 110.7) < 1.0, `carton width ${carton.width} should be within 1pt of 110.7`);
-    assert.ok(Math.abs(weight.width - 110.6) < 1.0, `weight width ${weight.width} should be within 1pt of 110.6`);
+    assert.ok(Math.abs(barcode.width - 170.4) < 1.0, `barcode width ${barcode.width} should be ~170.4`);
+    assert.ok(Math.abs(price.width - 110.7) < 1.0, `price width ${price.width} should be ~110.7`);
+    assert.ok(carton.width > 140.0, `carton width ${carton.width} should be expanded (> 140pt) for sentence`);
+    assert.ok(weight.width < 90.0, `weight width ${weight.width} should be reduced (< 90pt)`);
   });
 
   it('centers single visible column with max width 200', () => {
@@ -123,7 +123,7 @@ describe('getTableColumns', () => {
 });
 
 describe('computeProductLayout', () => {
-  it('calculates full-state layout within 1pt of target measurements', () => {
+  it('calculates full-state layout with base minimum description height', () => {
     const product = {
       descriptionAr: 'وصف عربي',
       descriptionEn: 'English description',
@@ -135,12 +135,27 @@ describe('computeProductLayout', () => {
 
     const layout = computeProductLayout(product, settings, variants);
 
-    // Card height should be 328.3 for 3 rows
+    // Card height should be 328.3 for 3 rows with standard desc
     assert.ok(Math.abs(layout.cardHeight - 328.3) < 1.0, `cardHeight ${layout.cardHeight} should be ~328.3`);
     assert.equal(layout.descHeight, 114.2);
+    assert.equal(layout.enDescHeight, 104.7);
     assert.equal(layout.hasDescriptions, true);
     // nameArTop should be pillTop - 25.94
     assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 25.94) < 0.01);
+  });
+
+  it('flexibly expands description height for long text without clipping', () => {
+    const longArabic = 'هذا نص وصف طويل جداً يتكون من عدة أسطر لمنتج طعام القطط المتميز مع مكونات طبيعية بالكامل وبروتينات عالية وفيتامينات متكاملة تدعم صحة ونمو القطط الأليفة بشكل متوازن وصحي على مدار اليوم.';
+    const product = {
+      descriptionAr: longArabic,
+      descriptionEn: 'Very long English description with comprehensive details that spans across multiple sentences and paragraphs to give complete product information.',
+    };
+    const settings = { visible: { description: true } };
+    const variants = [{ id: '1' }];
+
+    const layout = computeProductLayout(product, settings, variants);
+    assert.ok(layout.descHeight > 114.2, `descHeight ${layout.descHeight} should expand above 114.2 for long text`);
+    assert.ok(layout.enDescHeight > 104.7, `enDescHeight ${layout.enDescHeight} should expand`);
   });
 });
 
