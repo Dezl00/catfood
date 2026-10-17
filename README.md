@@ -9,7 +9,7 @@
     npm install
     npm run dev
 
-انسخ ملف env.example إلى env.local ثم أضف قيم DATABASE_URL وCLOUDINARY_CLOUD_NAME وCLOUDINARY_API_KEY وCLOUDINARY_API_SECRET.
+انسخ ملف .env.example إلى .env.local ثم أضف قيم DATABASE_URL وCLOUDINARY_CLOUD_NAME وCLOUDINARY_API_KEY وCLOUDINARY_API_SECRET.
 
 لا تضع القيم الحقيقية في Git أو في متغيرات تبدأ بـ NEXT_PUBLIC_.
 

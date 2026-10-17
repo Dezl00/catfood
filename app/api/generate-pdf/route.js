@@ -1,41 +1,9 @@
 import { NextResponse } from 'next/server';
-import { existsSync, readFileSync } from 'fs';
-import path from 'path';
+import { existsSync } from 'fs';
 
 export const maxDuration = 60; // Max duration for Vercel Hobby
 
 let globalBrowser = null;
-let cachedFontCss = null;
-let cachedGlobalsCss = null;
-
-function getServerGlobalsCss() {
-  if (cachedGlobalsCss) return cachedGlobalsCss;
-  try {
-    const cssPath = path.join(process.cwd(), 'app', 'globals.css');
-    if (existsSync(cssPath)) {
-      cachedGlobalsCss = readFileSync(cssPath, 'utf-8');
-      return cachedGlobalsCss;
-    }
-  } catch (e) {
-    console.error('Failed to read globals.css:', e);
-  }
-  return '';
-}
-
-function getLocalFontCss() {
-  if (cachedFontCss) return cachedFontCss;
-  try {
-    const fontsPath = path.join(process.cwd(), 'public', 'fonts', 'local-fonts.css');
-    if (existsSync(fontsPath)) {
-      const fontsDir = path.join(process.cwd(), 'public', 'fonts').replace(/\\/g, '/');
-      cachedFontCss = readFileSync(fontsPath, 'utf-8').replace(/url\(\/fonts\//g, `url(file:///${fontsDir}/`);
-      return cachedFontCss;
-    }
-  } catch (e) {
-    console.error('Failed to load local font css:', e);
-  }
-  return '';
-}
 
 async function getBrowser() {
   if (globalBrowser && globalBrowser.isConnected()) {
@@ -113,10 +81,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'حجم الكتالوج كبير جداً' }, { status: 413 });
     }
     
+    const origin = new URL(request.url).origin;
     const browser = await getBrowser();
     page = await browser.newPage();
-    
-    const localFontCss = getLocalFontCss();
     
     // Fast standalone HTML page with 100% local fonts and exact styling
     const fullHtml = `<!DOCTYPE html>
@@ -124,13 +91,8 @@ export async function POST(request) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="${origin}/fonts/local-fonts.css">
   <style>
-    /* 100% Local Fonts */
-    ${localFontCss}
-
-    /* Core Application & Catalog Styles */
-    ${getServerGlobalsCss()}
-
     /* Injected Runtime Styles */
     ${css}
     
@@ -162,6 +124,7 @@ export async function POST(request) {
       min-height: 841.89pt !important;
       max-height: 841.89pt !important;
       box-shadow: none !important;
+      border: 0 !important;
       border-radius: 0 !important;
       page-break-after: always;
       page-break-inside: avoid;
@@ -185,16 +148,14 @@ export async function POST(request) {
 </body>
 </html>`;
     
+    await page.goto(origin + '/fonts/local-fonts.css');
     await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 15000 });
     
     // Quick check for fonts and images
     await page.evaluate(async () => {
       try {
         if (document.fonts) {
-          await Promise.race([
-            document.fonts.ready,
-            new Promise((resolve) => setTimeout(resolve, 300)),
-          ]);
+          await document.fonts.ready;
         }
       } catch {}
 
@@ -202,10 +163,10 @@ export async function POST(request) {
       if (pendingImages.length > 0) {
         await Promise.all(
           pendingImages.map((img) =>
-            new Promise((resolve) => {
-              img.onload = img.onerror = resolve;
-              setTimeout(resolve, 800);
-            })
+            Promise.race([
+              img.decode ? img.decode() : (img.complete ? Promise.resolve() : new Promise((resolve) => { img.onload = img.onerror = resolve; })),
+              new Promise((resolve) => setTimeout(resolve, 10000)),
+            ])
           )
         );
       }

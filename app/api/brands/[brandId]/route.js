@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { deleteBrand, getBrand, updateBrand } from '../../../../lib/database';
-import { uploadImage } from '../../../../lib/cloudinary';
+import { uploadImage, deleteImage } from '../../../../lib/cloudinary';
 
 export const runtime = 'nodejs';
 
@@ -31,9 +31,15 @@ export async function PATCH(request, context) {
 
     const formData = await request.formData();
     const logo = formData.get('logo');
-    const logoUrl = logo instanceof File && logo.size
-      ? await uploadImage(logo, 'brands')
-      : String(formData.get('logoUrl') ?? current.logoUrl);
+    let logoUrl = current.logoUrl;
+    if (logo instanceof File && logo.size) {
+      if (current.logoUrl) deleteImage(current.logoUrl).catch(() => {});
+      logoUrl = await uploadImage(logo, 'brands');
+    } else if (formData.has('logoUrl')) {
+      logoUrl = String(formData.get('logoUrl') ?? '');
+      if (!logoUrl && current.logoUrl) deleteImage(current.logoUrl).catch(() => {});
+    }
+
     const brand = await updateBrand(brandId, {
       nameAr: String(formData.get('nameAr') ?? current.nameAr),
       nameEn: String(formData.get('nameEn') ?? current.nameEn),
@@ -49,7 +55,17 @@ export async function PATCH(request, context) {
 export async function DELETE(_request, context) {
   try {
     const { brandId } = await context.params;
+    const current = await getBrand(brandId, true);
+    if (!current) return NextResponse.json({ error: 'البراند غير موجود.' }, { status: 404 });
     const removed = await deleteBrand(brandId);
+    if (removed) {
+      if (current.logoUrl) deleteImage(current.logoUrl).catch(() => {});
+      if (Array.isArray(current.products)) {
+        for (const p of current.products) {
+          if (p.imageUrl) deleteImage(p.imageUrl).catch(() => {});
+        }
+      }
+    }
     return removed ? NextResponse.json({ removed: true }) : NextResponse.json({ error: 'البراند غير موجود.' }, { status: 404 });
   } catch (error) {
     return message(error);

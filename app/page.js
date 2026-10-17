@@ -1,34 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  UNIT_MAP,
+  normalizeUnit,
+  extractUnitFromWeight,
+  MAPPABLE_FIELDS,
+  autoDetectMapping,
+  getTableColumns,
+  computeProductLayout,
+  getVariantsPerPage,
+  paginateProductVariants,
+} from '../lib/catalog-helpers';
 
 const DEFAULT_SETTINGS = {
   footerText: 'السعر غير شامل الضريبة',
   currency: 'ج.م',
-  visible: { category: true, description: true, prices: true, cartonPrice: true, carton: true, barcode: true },
-};
-
-const UNIT_MAP = {
-  'جم': 'g',
-  'جرام': 'g',
-  'غرام': 'g',
-  'كجم': 'kg',
-  'كيلو': 'kg',
-  'كيلوغرام': 'kg',
-  'لتر': 'L',
-  'ليتر': 'L',
-  'مل': 'ml',
-  'ملل': 'ml',
-  'حبة': 'pcs',
-  'قطعة': 'pcs',
-  'حبه': 'pcs',
-  'قطع': 'pcs',
-};
-
-const normalizeUnit = (unit) => {
-  if (!unit) return '';
-  const trimmed = String(unit).trim();
-  return UNIT_MAP[trimmed] || UNIT_MAP[trimmed.toLowerCase()] || trimmed;
+  visible: { description: true, prices: true, cartonPrice: true, carton: true, barcode: true },
 };
 
 const newId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
@@ -78,138 +66,43 @@ function BrandBadge({ brand, large = false }) {
 function UploadZone({ preview, onFile, label, note, compact = false }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
-  const useFile = (file) => {
+  const handleFile = (file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) return;
     onFile(file);
   };
-  return <div className={['upload-zone', compact && 'upload-zone--compact', dragging && 'is-dragging', preview && 'has-preview'].filter(Boolean).join(' ')} role="button" tabIndex={0} onClick={() => inputRef.current?.click()} onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); useFile(event.dataTransfer.files?.[0]); }}>
-    <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => useFile(event.target.files?.[0])} />
+  return <div className={['upload-zone', compact && 'upload-zone--compact', dragging && 'is-dragging', preview && 'has-preview'].filter(Boolean).join(' ')} role="button" tabIndex={0} onClick={() => inputRef.current?.click()} onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); handleFile(event.dataTransfer.files?.[0]); }}>
+    <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => handleFile(event.target.files?.[0])} />
     {preview ? <img src={preview} alt="معاينة" /> : <><Icon name="upload" size={compact ? 22 : 28} /><strong>{label}</strong><span>{note}</span></>}
   </div>;
 }
 
-function estimateDescHeight(product, hasBoth) {
-  const arText = String(product.descriptionAr || '').trim();
-  const enText = String(product.descriptionEn || '').trim();
-  if (!arText && !enText) return 0;
+function fitDescriptions(container) {
+  if (!container) return;
+  const boxes = container.querySelectorAll('.cf-desc-box');
+  boxes.forEach((box) => {
+    const textAr = box.querySelector('.cf-desc-ar-text');
+    const textEn = box.querySelector('.cf-desc-en-text');
+    const textEl = textAr || textEn;
+    if (!textEl) return;
 
-  const charsPerLineAr = hasBoth ? 30 : 65;
-  const charsPerLineEn = hasBoth ? 28 : 60;
+    const isArabic = Boolean(textAr);
+    let fontSize = isArabic ? 11.0 : 13.0;
+    const minSize = 8.5;
 
-  const linesAr = arText ? arText.split('\n').reduce((acc, line) => acc + Math.max(1, Math.ceil((line.length || 1) / charsPerLineAr)), 0) : 0;
-  const linesEn = enText ? enText.split('\n').reduce((acc, line) => acc + Math.max(1, Math.ceil((line.length || 1) / charsPerLineEn)), 0) : 0;
+    textEl.style.fontSize = `${fontSize}pt`;
+    textEl.style.lineHeight = `${isArabic ? 18.0 : 15.6}pt`;
 
-  const heightAr = linesAr > 0 ? 26 + linesAr * 20 : 0;
-  const heightEn = linesEn > 0 ? 26 + linesEn * 18 : 0;
+    const maxHeight = box.clientHeight || parseFloat(box.style.height) || (isArabic ? 114.2 : 104.7);
 
-  const rawHeight = Math.max(heightAr, heightEn);
-  // Flexible: min 52pt, max 165pt
-  return Math.min(165, Math.max(52, Math.round(rawHeight)));
-}
-
-function getTableColumns(visible, variants = []) {
-  const showWeight = true; // Always visible
-  const showCarton = visible?.carton !== false;
-  const showPrice = visible?.prices !== false;
-  const showBarcode = visible?.barcode !== false;
-  const showCartonPrice = visible?.cartonPrice !== false && variants.some((v) => Boolean(String(v.pricePerCarton || '').trim()));
-
-  // If carton price is enabled and present, render 5-column layout across 516.50pt
-  // Barcode widened to 146.50pt, Carton count reduced to 98.00pt
-  if (showCartonPrice) {
-    const barcodeCol = 146.50;
-    const cartonPriceCol = 96.00;
-    const priceCol = 86.00;
-    const cartonCol = 98.00;
-    const weightCol = 70.00;
-
-    return [
-      { key: 'barcode', title: 'باركود', left: 32.50, width: barcodeCol, align: 'ltr' },
-      { key: 'cartonPrice', title: 'سعر الكرتون', left: 32.50 + barcodeCol + 5.0, width: cartonPriceCol, align: 'ltr' },
-      { key: 'price', title: 'سعر الحبة', left: 32.50 + barcodeCol + 5.0 + cartonPriceCol + 5.0, width: priceCol, align: 'ltr' },
-      { key: 'carton', title: 'العدد بالكرتون', left: 32.50 + barcodeCol + 5.0 + cartonPriceCol + 5.0 + priceCol + 5.0, width: cartonCol, align: 'ltr' },
-      { key: 'weight', title: 'الوزن', left: 32.50 + barcodeCol + 5.0 + cartonPriceCol + 5.0 + priceCol + 5.0 + cartonCol + 5.0, width: weightCol, align: 'ltr' },
-    ];
-  }
-
-  // Exact Cat Food spec numbers when standard 4 columns are visible
-  // Barcode widened to 199.50pt, Carton count reduced to 108.00pt
-  if (showWeight && showCarton && showPrice && showBarcode) {
-    const barcodeCol = 199.50;
-    const priceCol = 112.00;
-    const cartonCol = 108.00;
-    const weightCol = 82.00;
-
-    return [
-      { key: 'barcode', title: 'باركود', left: 32.50, width: barcodeCol, align: 'ltr' },
-      { key: 'price', title: 'السعر', left: 32.50 + barcodeCol + 5.0, width: priceCol, align: 'ltr' },
-      { key: 'carton', title: 'العدد بالكرتون', left: 32.50 + barcodeCol + 5.0 + priceCol + 5.0, width: cartonCol, align: 'ltr' },
-      { key: 'weight', title: 'الوزن', left: 32.50 + barcodeCol + 5.0 + priceCol + 5.0 + cartonCol + 5.0, width: weightCol, align: 'ltr' },
-    ];
-  }
-
-  // Reflow logic for hidden columns with barcode widened and carton reduced
-  const activeCols = [];
-  if (showBarcode) activeCols.push({ key: 'barcode', title: 'باركود', weight: 1.8, align: 'ltr' });
-  if (showPrice) activeCols.push({ key: 'price', title: 'السعر', weight: 1.0, align: 'ltr' });
-  if (showCarton) activeCols.push({ key: 'carton', title: 'العدد بالكرتون', weight: 1.1, align: 'ltr' });
-  if (showWeight) activeCols.push({ key: 'weight', title: 'الوزن', weight: 0.75, align: 'ltr' });
-
-  const gap = 5.0;
-  const totalGaps = Math.max(0, activeCols.length - 1) * gap;
-  const availableContentWidth = 516.50 - totalGaps;
-  const totalWeight = activeCols.reduce((sum, c) => sum + c.weight, 0);
-
-  let currentLeft = 32.50;
-  return activeCols.map((col) => {
-    const width = Number(((col.weight / totalWeight) * availableContentWidth).toFixed(2));
-    const left = Number(currentLeft.toFixed(2));
-    currentLeft += width + gap;
-    return { ...col, left, width };
+    while ((textEl.scrollHeight > maxHeight || box.scrollHeight > box.clientHeight) && fontSize > minSize) {
+      fontSize = Math.max(minSize, Number((fontSize - 0.5).toFixed(1)));
+      const linePitch = isArabic ? Number((fontSize * (18 / 11)).toFixed(2)) : Number((fontSize * (15.6 / 13)).toFixed(2));
+      textEl.style.fontSize = `${fontSize}pt`;
+      textEl.style.lineHeight = `${linePitch}pt`;
+      if (fontSize <= minSize) break;
+    }
   });
-}
-
-function computeProductLayout(product, settings, variants) {
-  const hasDescAr = settings?.visible?.description !== false && Boolean(product.descriptionAr?.trim());
-  const hasDescEn = settings?.visible?.description !== false && Boolean(product.descriptionEn?.trim());
-  const hasDescriptions = hasDescAr || hasDescEn;
-
-  const rowCount = Math.max(1, variants.length);
-  const tableHeight = 22.5 + rowCount * 28;
-
-  const availableTotalHeight = 623.0; // from y = 145.8 to 768.8
-  const descHeight = hasDescriptions ? estimateDescHeight(product, hasDescAr && hasDescEn) : 0;
-  const descGap1 = hasDescriptions ? 32.0 : 0;
-  const descGap2 = hasDescriptions ? 30.0 : 36.0;
-
-  // Flexible image card height absorbs the difference (min 160pt)
-  const cardHeight = Math.max(160, availableTotalHeight - descHeight - tableHeight - descGap1 - descGap2);
-  const cardBottom = 145.8 + cardHeight;
-
-  // Name pill centered on card bottom border (y = cardBottom)
-  const pillHeight = 17.93;
-  const pillTop = cardBottom - pillHeight / 2;
-  const nameArTop = pillTop - 19;
-
-  // Descriptions top
-  const descTop = hasDescriptions ? cardBottom + descGap1 : 0;
-
-  // Table top
-  const tableTop = hasDescriptions ? descTop + descHeight + descGap2 : cardBottom + descGap2;
-
-  return {
-    cardHeight,
-    cardBottom,
-    pillTop,
-    nameArTop,
-    hasDescAr,
-    hasDescEn,
-    hasDescriptions,
-    descHeight,
-    descTop,
-    tableTop,
-  };
 }
 
 function formatVariantCell(variant, product, key) {
@@ -284,17 +177,24 @@ function CatalogClosingSheet({ brand }) {
   );
 }
 
-function ProductSheet({ brand, product, compact = false }) {
+function ProductSheet({ brand, product, variants: customVariants }) {
   const brandAr = brand?.nameAr || 'كـات فـود';
   const brandEn = brand?.nameEn || 'CAT FOOD';
   const settings = mergeSettings(brand?.settings);
-  const variants = product.variants?.length ? product.variants : [emptyVariant()];
+  const variants = customVariants || (product.variants?.length ? product.variants : [emptyVariant()]);
 
   const layout = computeProductLayout(product, settings, variants);
   const columns = getTableColumns(settings.visible, variants);
+  const sheetRef = useRef(null);
+
+  useEffect(() => {
+    if (sheetRef.current) {
+      fitDescriptions(sheetRef.current);
+    }
+  }, [product.descriptionAr, product.descriptionEn, layout.descHeight]);
 
   return (
-    <article className="catfood-page" id="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
+    <article ref={sheetRef} className="catfood-page" data-page="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
       {/* Header Band */}
       <div className="cf-header-band" />
       <div className="cf-header-ar">{brandAr}</div>
@@ -342,7 +242,7 @@ function ProductSheet({ brand, product, compact = false }) {
                   top: `${layout.descTop}pt`,
                   width: '250.00pt',
                   height: `${layout.descHeight}pt`,
-                  borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
+                  borderRadius: '36.9pt',
                 }}
               >
                 <div className="cf-desc-ar-text">{product.descriptionAr}</div>
@@ -353,10 +253,10 @@ function ProductSheet({ brand, product, compact = false }) {
                 className="cf-desc-box"
                 style={{
                   left: '32.50pt',
-                  top: `${layout.descTop}pt`,
+                  top: `${layout.descTop + (layout.descHeight - 104.7) / 2}pt`,
                   width: '250.00pt',
-                  height: `${layout.descHeight}pt`,
-                  borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
+                  height: '104.7pt',
+                  borderRadius: '36.9pt',
                 }}
               >
                 <div className="cf-desc-en-text">{product.descriptionEn}</div>
@@ -370,10 +270,10 @@ function ProductSheet({ brand, product, compact = false }) {
                 top: `${layout.descTop}pt`,
                 width: '516.50pt',
                 height: `${layout.descHeight}pt`,
-                borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
+                borderRadius: '36.9pt',
               }}
             >
-              <div className="cf-desc-ar-text" style={{ fontSize: '11.5pt', lineHeight: '18pt' }}>
+              <div className="cf-desc-ar-text">
                 {product.descriptionAr}
               </div>
             </div>
@@ -382,13 +282,13 @@ function ProductSheet({ brand, product, compact = false }) {
               className="cf-desc-box"
               style={{
                 left: '32.50pt',
-                top: `${layout.descTop}pt`,
+                top: `${layout.descTop + (layout.descHeight - 104.7) / 2}pt`,
                 width: '516.50pt',
-                height: `${layout.descHeight}pt`,
-                borderRadius: `${Math.min(26, layout.descHeight / 2)}pt`,
+                height: '104.7pt',
+                borderRadius: '36.9pt',
               }}
             >
-              <div className="cf-desc-en-text" style={{ fontSize: '12pt', lineHeight: '17pt' }}>
+              <div className="cf-desc-en-text">
                 {product.descriptionEn}
               </div>
             </div>
@@ -599,181 +499,6 @@ function variantsFromRow(row) {
   }];
 }
 
-const MAPPABLE_FIELDS = [
-  { key: 'nameAr', label: 'الاسم بالعربي', required: true, hint: 'الاسم العربي الأساسي لصفحة المنتج' },
-  { key: 'nameEn', label: 'الاسم بالإنجليزي', required: false, hint: 'الاسم الإنجليزي في الشارة المستطيلة' },
-  { key: 'pricePerPiece', label: 'سعر الحبة', required: false, hint: 'سعر القطعة الفردية في الجدول' },
-  { key: 'pricePerCarton', label: 'سعر الكرتون', required: false, hint: 'سعر كرتون المنتج في الجدول' },
-  { key: 'qtyPerCarton', label: 'العدد في الكرتون', required: false, hint: 'عدد الحبات المعبأة بالكرتون' },
-  { key: 'weight', label: 'الوزن / الحجم', required: false, hint: 'الوزن أو السعة (مثل: 5 أو 400)' },
-  { key: 'unit', label: 'وحدة الوزن (Unit)', required: false, hint: 'الوحدة (g, kg, L, ml, pcs)' },
-  { key: 'barcode', label: 'الباركود (Barcode)', required: false, hint: 'رقم الباركود أو رمز الصنف' },
-  { key: 'descriptionAr', label: 'الوصف بالعربي', required: false, hint: 'النص في الصندوق الأيمن' },
-  { key: 'descriptionEn', label: 'الوصف بالإنجليزي', required: false, hint: 'النص في الصندوق الأيسر' },
-  { key: 'imageUrl', label: 'رابط الصورة', required: false, hint: 'رابط مباشر لصورة المنتج (اختياري)' },
-];
-
-function extractUnitFromWeight(str) {
-  if (!str) return '';
-  const s = String(str).toLowerCase();
-  if (s.includes('kg') || s.includes('كغ') || s.includes('كيلو')) return 'kg';
-  if (s.includes('ml') || s.includes('مل')) return 'ml';
-  if (s.includes('l') || s.includes('لتر')) return 'L';
-  if (s.includes('pcs') || s.includes('حبة') || s.includes('قطع')) return 'pcs';
-  if (s.includes('oz') || s.includes('أونصة')) return 'oz';
-  if (s.includes('lb') || s.includes('باوند')) return 'lb';
-  if (s.includes('g') || s.includes('جرام') || s.includes('جم')) return 'g';
-  return '';
-}
-
-function autoDetectMapping(headers) {
-  const mapping = {};
-  for (const f of MAPPABLE_FIELDS) mapping[f.key] = '';
-
-  for (const rawHeader of headers) {
-    const raw = String(rawHeader || '').trim();
-    if (!raw) continue;
-    const clean = raw.toLowerCase().replace(/[\s_\-]+/g, '');
-
-    if (!mapping.nameAr && (
-      (clean.includes('عرب') && clean.includes('اسم')) ||
-      clean.includes('namear') ||
-      clean.includes('arabicname') ||
-      clean === 'اسم' ||
-      clean === 'الاسم' ||
-      clean === 'اسمالمنتج' ||
-      clean === 'المنتج' ||
-      clean === 'اسم_المنتج'
-    )) {
-      mapping.nameAr = raw;
-      continue;
-    }
-
-    if (!mapping.nameEn && (
-      clean.includes('انجليز') ||
-      clean.includes('إنجليز') ||
-      clean.includes('nameen') ||
-      clean.includes('englishname') ||
-      clean === 'itemname' ||
-      clean === 'english' ||
-      clean === 'ename' ||
-      clean === 'name'
-    )) {
-      mapping.nameEn = raw;
-      continue;
-    }
-
-    if (!mapping.pricePerPiece && (
-      clean.includes('سعرالحبة') ||
-      clean.includes('سعرحبة') ||
-      clean.includes('سعرالقطعة') ||
-      clean.includes('سعرقطعة') ||
-      clean.includes('priceperpiece') ||
-      clean.includes('pieceprice') ||
-      clean.includes('unitprice') ||
-      clean === 'سعر' ||
-      clean === 'السعر' ||
-      clean === 'price'
-    )) {
-      mapping.pricePerPiece = raw;
-      continue;
-    }
-
-    if (!mapping.pricePerCarton && (
-      clean.includes('سعرالكرتون') ||
-      clean.includes('سعركرتون') ||
-      clean.includes('cartonprice') ||
-      clean.includes('boxprice') ||
-      clean.includes('pricepercarton')
-    )) {
-      mapping.pricePerCarton = raw;
-      continue;
-    }
-
-    if (!mapping.qtyPerCarton && (
-      clean.includes('عددالكرتون') ||
-      clean.includes('عددبالكرتون') ||
-      clean.includes('كميةالكرتون') ||
-      clean.includes('qtypercarton') ||
-      clean.includes('quantitypercarton') ||
-      clean.includes('pcspercarton') ||
-      clean.includes('كرتون') ||
-      clean === 'عدد' ||
-      clean === 'العدد' ||
-      clean === 'الكمية' ||
-      clean === 'qty'
-    )) {
-      mapping.qtyPerCarton = raw;
-      continue;
-    }
-
-    if (!mapping.weight && (
-      clean.includes('وزن') ||
-      clean.includes('الوزن') ||
-      clean.includes('حجم') ||
-      clean.includes('الحجم') ||
-      clean.includes('weight') ||
-      clean.includes('size')
-    )) {
-      mapping.weight = raw;
-      continue;
-    }
-
-    if (!mapping.unit && (
-      clean.includes('وحدة') ||
-      clean.includes('الوحدة') ||
-      clean === 'unit'
-    )) {
-      mapping.unit = raw;
-      continue;
-    }
-
-    if (!mapping.barcode && (
-      clean.includes('باركود') ||
-      clean.includes('الباركود') ||
-      clean.includes('barcode') ||
-      clean.includes('sku') ||
-      clean.includes('كود') ||
-      clean.includes('code')
-    )) {
-      mapping.barcode = raw;
-      continue;
-    }
-
-    if (!mapping.descriptionAr && (
-      (clean.includes('وصف') && clean.includes('عرب')) ||
-      clean.includes('descar') ||
-      clean.includes('وصف') ||
-      clean.includes('الوصف')
-    )) {
-      mapping.descriptionAr = raw;
-      continue;
-    }
-
-    if (!mapping.descriptionEn && (
-      (clean.includes('وصف') && (clean.includes('انجليز') || clean.includes('إنجليز'))) ||
-      clean.includes('descen') ||
-      clean.includes('description')
-    )) {
-      mapping.descriptionEn = raw;
-      continue;
-    }
-
-    if (!mapping.imageUrl && (
-      clean.includes('صورة') ||
-      clean.includes('الصورة') ||
-      clean.includes('image') ||
-      clean.includes('photo') ||
-      clean.includes('img')
-    )) {
-      mapping.imageUrl = raw;
-      continue;
-    }
-  }
-
-  return mapping;
-}
-
 function rowToProductWithMapping(row, mapping) {
   const get = (key) => {
     const col = mapping[key];
@@ -920,11 +645,14 @@ export default function Home() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [previewModal, setPreviewModal] = useState(null);
   const [catalogPreviewModal, setCatalogPreviewModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const importInput = useRef(null);
   const pdfRef = useRef(null);
+  const activeIdRef = useRef(null);
+  activeIdRef.current = activeBrand?.id;
   const notify = useCallback((message, tone = 'success') => setToast({ message, tone }), []);
 
   const loadBrands = useCallback(async () => {
@@ -945,10 +673,10 @@ export default function Home() {
   }, []);
   const refresh = useCallback(async (brandId) => {
     const list = await loadBrands();
-    const targetId = brandId || activeBrand?.id || list[0]?.id;
+    const targetId = brandId || activeIdRef.current || list[0]?.id;
     if (targetId) await loadBrand(targetId);
     else setActiveBrand(null);
-  }, [activeBrand?.id, loadBrand, loadBrands]);
+  }, [loadBrands, loadBrand]);
 
   useEffect(() => {
     try {
@@ -964,7 +692,8 @@ export default function Home() {
       }
     } catch {}
     refresh().catch((error) => notify(error.message, 'warning'));
-  }, [refresh, notify]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 4200);
@@ -1099,8 +828,12 @@ export default function Home() {
     if (!window.confirm('حذف براند «' + brand.nameAr + '» وكل صفحاته؟')) return;
     try {
       await request('/api/brands/' + brand.id, { method: 'DELETE' });
+      const list = await loadBrands();
+      if (activeBrand?.id === brand.id) {
+        try { localStorage.removeItem(CACHE_ACTIVE_KEY); } catch {}
+        if (list[0]) await loadBrand(list[0].id); else setActiveBrand(null);
+      }
       notify('تم حذف البراند.');
-      await refresh(activeBrand?.id === brand.id ? undefined : activeBrand?.id);
     } catch (error) { notify(error.message, 'warning'); }
   };
   const downloadTemplate = async () => {
@@ -1187,10 +920,16 @@ export default function Home() {
   };
 
   const exportDirectPdf = async () => {
-    if (!activeBrand?.products?.length || !pdfRef.current) return notify('اختر براندًا يحتوي على صفحة واحدة على الأقل أولًا.', 'warning');
+    if (!activeBrand?.products?.length) return notify('اختر براندًا يحتوي على صفحة واحدة على الأقل أولًا.', 'warning');
     setBusy(true);
+    setExporting(true);
     notify('جاري تجهيز وتصدير كتالوج PDF فائق السرعة…');
     try {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      if (pdfRef.current) {
+        fitDescriptions(pdfRef.current);
+      }
       let css = '';
       for (const style of Array.from(document.querySelectorAll('style'))) {
         css += (style.textContent || '') + '\n';
@@ -1225,6 +964,7 @@ export default function Home() {
       notify(error.message, 'warning');
     } finally {
       setBusy(false);
+      setExporting(false);
     }
   };
   const updateBrandSettings = async (event) => {
@@ -1262,17 +1002,23 @@ export default function Home() {
       {view === 'import' && <section className="page-shell import-page">{activeBrand ? <><div className="import-hero"><span className="hero-icon"><Icon name="upload" size={27} /></span><p className="eyebrow">EXCEL COLUMN MAPPING & PREVIEW</p><h2>استيراد صفحات {activeBrand.nameAr}</h2><p>ارفع ملف Excel، حدد مطابقة كل عامود مع العنصر المناسب له، عاين البيانات، ثم أدرج الصفحات في الكتالوج.</p></div>{!rawFileState && !importRows.length && <div className="import-actions"><button className="import-card" onClick={downloadTemplate}><span><Icon name="download" size={23} /></span><div><strong>1. تنزيل قالب Excel</strong><p>يشمل الأعمدة الافتراضية وحقل variants للمقاسات المتعددة.</p></div><Icon name="arrow" size={19} /></button><button className="import-card" onClick={() => importInput.current?.click()}><span><Icon name="upload" size={23} /></span><div><strong>2. اختيار ملف Excel</strong><p>يدعم أي ملف XLSX أو XLS بأي ترتيب للأعمدة ويفتح واجهة المطابقة.</p></div><Icon name="arrow" size={19} /></button><input ref={importInput} type="file" accept=".xlsx,.xls" onChange={readExcel} /></div>}{rawFileState && !importRows.length && <section className="import-mapping"><div className="mapping-header"><div><h3><Icon name="tag" size={18} /> تحديد ومطابقة أعمدة الملف</h3><p>اختر لكل عنصر في الكتالوج العامود المقابل له في ملف Excel المرفوع:</p></div><div className="mapping-file-info"><span className="mapping-badge">الملف: {rawFileState.filename} ({rawFileState.rows.length} صف)</span><button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button></div></div><div className="mapping-grid">{MAPPABLE_FIELDS.map((field) => <div key={field.key} className={['mapping-field-card', field.required && 'is-required'].filter(Boolean).join(' ')}><div className="mapping-field-label"><span>{field.label}</span>{field.required ? <span className="req">مطلوب</span> : <small className="mapping-field-hint">{field.hint}</small>}</div><select className="mapping-select" value={rawFileState.mapping[field.key] || ''} onChange={(e) => updateColumnMapping(field.key, e.target.value)}><option value="">-- تجاهل هذا الحقل --</option>{rawFileState.headers.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>)}</div><div className="mapping-preview-section"><h4>معاينة حية للمطابقة (أول {Math.min(3, rawFileState.rows.length)} صفوف):</h4><div className="table-wrap"><table><thead><tr><th>الاسم بالعربي</th><th>الاسم بالإنجليزي</th><th>سعر الحبة</th><th>سعر الكرتون</th><th>عدد الكرتون</th><th>الوزن / الحجم</th><th>الباركود</th></tr></thead><tbody>{rawFileState.rows.slice(0, 3).map((r, i) => { const p = rowToProductWithMapping(r, rawFileState.mapping); const v = p.variants[0] || {}; return <tr key={i}><td><strong>{p.nameAr || '—'}</strong></td><td>{p.nameEn || '—'}</td><td>{v.pricePerPiece || '—'}</td><td>{v.pricePerCarton || '—'}</td><td>{v.qtyPerCarton || '—'}</td><td>{v.weight ? (v.weight + ' ' + (v.unit || '')) : '—'}</td><td dir="ltr">{p.barcode || '—'}</td></tr>; })}</tbody></table></div></div><div className="mapping-actions-bar"><button className="button button-ghost" onClick={resetImport}>إلغاء واختيار ملف آخر</button><button className="button button-primary" onClick={applyColumnMapping}><Icon name="check" size={17} /> تطبيق المطابقة ومعاينة البيانات ({rawFileState.rows.length} صف)</button></div></section>}{importRows.length > 0 && <section className="import-review"><div className="review-header"><div><h3>معاينة البيانات قبل الإدراج</h3><p>{importRows.length} صف جاهز للمراجعة. يمكنك تعديل أي صف أو حذفه، ثم الضغط على إدراج الصفحات في الكتالوج.</p></div><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{rawFileState && <button className="button button-ghost" onClick={() => setImportRows([])} title="العودة لشاشة مطابقة وتحديد الأعمدة"><Icon name="settings" size={15} /> تعديل مطابقة الأعمدة</button>}<button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button><button className="button button-primary" disabled={busy} onClick={insertImportRows}><Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}</button></div></div><div className="table-wrap"><table><thead><tr><th>المنتج</th><th>المقاسات</th><th>الباركود</th><th>إجراء</th></tr></thead><tbody>{importRows.map((row, index) => <tr key={row.id}><td><strong>{row.nameAr || 'بدون اسم عربي'}</strong><small>{row.nameEn}</small></td><td>{row.variants.map((variant) => variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : '—').join('، ')}</td><td dir="ltr">{row.barcode || '—'}</td><td><button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}><Icon name="edit" size={15} /> تعديل</button><button className="table-action danger" onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15} /> حذف</button></td></tr>)}</tbody></table></div></section>}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
       {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><p className="eyebrow">ACTIVE BRAND DESIGN</p><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'description', label: 'الوصف' }, { key: 'prices', label: 'سعر الحبة' }, { key: 'cartonPrice', label: 'سعر الكرتون' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key] !== false} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
     </section>
-    <div className="pdf-stage" ref={pdfRef} aria-hidden="true">
-      {activeBrand && (
-        <>
-          <CatalogWelcomeSheet brand={activeBrand} />
-          {activeBrand?.products?.map((product) => (
-            <ProductSheet key={product.id} brand={activeBrand} product={product} />
-          ))}
-          <CatalogClosingSheet brand={activeBrand} />
-        </>
-      )}
-    </div>
+    {exporting && activeBrand && (
+      <div className="pdf-stage" ref={pdfRef} aria-hidden="true">
+        <CatalogWelcomeSheet brand={activeBrand} />
+        {activeBrand?.products?.map((product) => {
+          const pages = paginateProductVariants(product, mergeSettings(activeBrand.settings));
+          return pages.map((pageVariants, pIdx) => (
+            <ProductSheet
+              key={`${product.id}-p${pIdx}`}
+              brand={activeBrand}
+              product={product}
+              variants={pageVariants}
+            />
+          ));
+        })}
+        <CatalogClosingSheet brand={activeBrand} />
+      </div>
+    )}
     {brandModal && <BrandEditor brand={brandModal.id ? brandModal : null} onClose={() => setBrandModal(null)} onSaved={onBrandSaved} notify={notify} />}
     {productModal && activeBrand && <ProductEditor brand={activeBrand} product={productModal.product} title={productModal.mode === 'edit' ? 'تعديل صفحة المنتج' : productModal.mode === 'import' ? 'تعديل صف الملف المستورد' : 'صفحة منتج جديدة'} onClose={() => setProductModal(null)} onSaved={saveProduct} notify={notify} />}
     {previewModal && activeBrand && (
@@ -1283,46 +1029,62 @@ export default function Home() {
         wide
       >
         <div className="sheet-preview-modal-body">
-          <ProductSheet brand={activeBrand} product={previewModal} />
-        </div>
-      </Modal>
-    )}
-    {catalogPreviewModal && activeBrand && (
-      <Modal
-        title={'معاينة كتالوج: ' + activeBrand.nameAr}
-        subtitle={'إجمالي ' + (products.length + 2) + ' صفحة (صفحة الترحيب + ' + products.length + ' صفحة منتج + صفحة الختام)'}
-        onClose={() => setCatalogPreviewModal(false)}
-        wide
-      >
-        <div className="catalog-preview-scroll">
-          <div className="catalog-preview-page-wrap">
-            <div className="catalog-preview-page-header">
-              <strong>صفحة 1 (صفحة الترحيب)</strong>
-              <span>{activeBrand.nameAr}</span>
-            </div>
-            <CatalogWelcomeSheet brand={activeBrand} />
-          </div>
-
-          {products.map((prod, idx) => (
-            <div key={prod.id} className="catalog-preview-page-wrap">
-              <div className="catalog-preview-page-header">
-                <strong>صفحة {idx + 2}</strong>
-                <span>{prod.nameAr || prod.nameEn}</span>
-              </div>
-              <ProductSheet brand={activeBrand} product={prod} />
-            </div>
+          {paginateProductVariants(previewModal, mergeSettings(activeBrand.settings)).map((pageVariants, pIdx) => (
+            <ProductSheet
+              key={`${previewModal.id}-p${pIdx}`}
+              brand={activeBrand}
+              product={previewModal}
+              variants={pageVariants}
+            />
           ))}
-
-          <div className="catalog-preview-page-wrap">
-            <div className="catalog-preview-page-header">
-              <strong>صفحة {products.length + 2} (صفحة الختام)</strong>
-              <span>خدمتكم تسعدنا</span>
-            </div>
-            <CatalogClosingSheet brand={activeBrand} />
-          </div>
         </div>
       </Modal>
     )}
+    {catalogPreviewModal && activeBrand && (() => {
+      let pageNum = 2;
+      return (
+        <Modal
+          title={'معاينة كتالوج: ' + activeBrand.nameAr}
+          subtitle={'إجمالي صفحات الكتالوج مع الترحيب والختام'}
+          onClose={() => setCatalogPreviewModal(false)}
+          wide
+        >
+          <div className="catalog-preview-scroll">
+            <div className="catalog-preview-page-wrap">
+              <div className="catalog-preview-page-header">
+                <strong>صفحة 1 (صفحة الترحيب)</strong>
+                <span>{activeBrand.nameAr}</span>
+              </div>
+              <CatalogWelcomeSheet brand={activeBrand} />
+            </div>
+
+            {products.map((prod) => {
+              const pages = paginateProductVariants(prod, mergeSettings(activeBrand.settings));
+              return pages.map((pageVariants, pIdx) => {
+                const currentPage = pageNum++;
+                return (
+                  <div key={`${prod.id}-p${pIdx}`} className="catalog-preview-page-wrap">
+                    <div className="catalog-preview-page-header">
+                      <strong>صفحة {currentPage}</strong>
+                      <span>{prod.nameAr || prod.nameEn}{pages.length > 1 ? ` (صفحة ${pIdx + 1} من ${pages.length})` : ''}</span>
+                    </div>
+                    <ProductSheet brand={activeBrand} product={prod} variants={pageVariants} />
+                  </div>
+                );
+              });
+            })}
+
+            <div className="catalog-preview-page-wrap">
+              <div className="catalog-preview-page-header">
+                <strong>صفحة {pageNum} (صفحة الختام)</strong>
+                <span>خدمتكم تسعدنا</span>
+              </div>
+              <CatalogClosingSheet brand={activeBrand} />
+            </div>
+          </div>
+        </Modal>
+      );
+    })()}
     <nav className="mobile-bottom-bar" aria-label="شريط التنقل السريع">
       {nav.map((item) => (
         <button

@@ -1644,7 +1644,7 @@ h1, h2, h3, p {
   overflow: hidden;
   flex: none;
   box-sizing: border-box;
-  border: 1px solid #dce5df;
+  border: none;
   page-break-after: always;
   break-after: page;
 }
@@ -1883,19 +1883,19 @@ h1, h2, h3, p {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  height: 18.50pt;
-  border-radius: 9.25pt;
+  height: 17.93pt;
+  border-radius: 8.97pt;
   background: #00497A;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12pt;
+  padding: 0 4pt;
   width: max-content;
   max-width: 480pt;
   color: #FFF0DC;
   font-family: 'Tajawal', sans-serif;
-  font-weight: 500;
-  font-size: 14pt;
+  font-weight: 700;
+  font-size: 13pt;
   direction: ltr;
   white-space: nowrap;
   line-height: 1;
@@ -1919,28 +1919,29 @@ h1, h2, h3, p {
   justify-content: center;
   text-align: center;
   font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-weight: 500;
-  font-size: 14pt;
+  font-weight: 700;
+  font-size: 12pt;
   color: #00497A;
   direction: rtl;
-  line-height: 1.4;
+  line-height: 1;
   white-space: nowrap;
   z-index: 2;
-  padding: 4pt 0;
+  padding: 0;
+  height: 29.5pt;
   overflow: visible;
   box-sizing: border-box;
 }
 
 .cf-name-ar span {
   overflow: visible;
-  line-height: 1.4;
+  line-height: 1;
   display: inline-block;
-  padding: 2pt 6pt;
+  padding: 0;
 }
 
 .cf-desc-box {
   position: absolute;
-  border-radius: 26pt;
+  border-radius: 36.9pt;
   background: #00497A;
   box-sizing: border-box;
   display: flex;
@@ -1958,9 +1959,8 @@ h1, h2, h3, p {
   font-size: 11pt;
   color: #FFF0DC;
   direction: rtl;
-  text-align: justify;
-  text-justify: inter-word;
-  line-height: 17pt;
+  text-align: center;
+  line-height: 18pt;
   word-break: break-word;
   overflow-wrap: break-word;
   width: 100%;
@@ -1971,10 +1971,11 @@ h1, h2, h3, p {
 .cf-desc-en-text {
   font-family: 'Tajawal', sans-serif;
   font-weight: 400;
-  font-size: 11.5pt;
+  font-size: 13pt;
   color: #FFF0DC;
   direction: ltr;
-  line-height: 15pt;
+  text-align: center;
+  line-height: 15.6pt;
   word-break: break-word;
   overflow-wrap: break-word;
   width: 100%;
@@ -1990,8 +1991,8 @@ h1, h2, h3, p {
   justify-content: center;
   text-align: center;
   font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-weight: 400;
-  font-size: 13.5pt;
+  font-weight: 500;
+  font-size: 14.6pt;
   color: #FFF0DC;
   direction: rtl;
   line-height: 1;
@@ -2012,8 +2013,8 @@ h1, h2, h3, p {
   justify-content: center;
   text-align: center;
   font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-weight: 350;
-  font-size: 13.5pt;
+  font-weight: 400;
+  font-size: 14.6pt;
   color: #00497A;
   direction: ltr;
   line-height: 1;
