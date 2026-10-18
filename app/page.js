@@ -24,6 +24,7 @@ import {
   UNIT_MAP,
   normalizeUnit,
   extractUnitFromWeight,
+  extractWeightAndUnit,
   MAPPABLE_FIELDS,
   autoDetectMapping,
   getTableColumns,
@@ -89,7 +90,7 @@ function Field({ label, children }) {
 
 function BrandBadge({ brand, large = false }) {
   return <div className={['brand-badge', large && 'brand-badge--large'].filter(Boolean).join(' ')}>
-    {brand?.logoUrl ? <img src={brand.logoUrl} alt="" /> : <b>{(brand?.nameAr || brand?.nameEn || 'B').slice(0, 1)}</b>}
+    {brand?.logoUrl ? <img src={brand.logoUrl} alt="" /> : <b>{(brand?.nameAr || 'B').slice(0, 1)}</b>}
   </div>;
 }
 
@@ -506,6 +507,57 @@ function SortableProductCard({
   );
 }
 
+function CardImage({ src, alt }) {
+  const [loaded, setLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  // Cloudinary image auto-format & quality optimization for lightning speed
+  const optimizedSrc = useMemo(() => {
+    if (!src) return '';
+    if (src.includes('cloudinary.com') && src.includes('/upload/') && !src.includes('f_auto')) {
+      return src.replace('/upload/', '/upload/f_auto,q_auto/');
+    }
+    return src;
+  }, [src]);
+
+  return (
+    <div className="card-image-wrap">
+      {!loaded && !hasError && <div className="card-image-skeleton" />}
+      <img
+        src={optimizedSrc}
+        alt={alt || ''}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setHasError(true)}
+        className={['card-img-element', loaded && 'is-loaded'].filter(Boolean).join(' ')}
+      />
+    </div>
+  );
+}
+
+function ProductCardSkeleton() {
+  return (
+    <article className="product-card product-card-skeleton">
+      <div className="product-card-topbar">
+        <div className="skeleton-line" style={{ width: '48px', height: '18px', borderRadius: '4px' }} />
+        <div className="skeleton-line" style={{ width: '64px', height: '18px', borderRadius: '4px' }} />
+      </div>
+      <div className="product-card-hero">
+        <div className="card-image-skeleton" />
+      </div>
+      <div className="product-card-content">
+        <div className="skeleton-line" style={{ width: '75%', height: '16px', marginBottom: '8px' }} />
+        <div className="skeleton-line" style={{ width: '45%', height: '13px' }} />
+      </div>
+      <div className="product-card-footer">
+        <div className="skeleton-line" style={{ width: '62%', height: '32px', borderRadius: '7px' }} />
+        <div className="skeleton-line" style={{ width: '32%', height: '32px', borderRadius: '7px' }} />
+      </div>
+    </article>
+  );
+}
+
 function ProductCard({
   brand,
   product,
@@ -569,7 +621,7 @@ function ProductCard({
 
       <div className="product-card-hero" onClick={onPreview} title="معاينة شكل الصفحة A4" style={{ cursor: 'pointer' }}>
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.nameAr || ''} loading="lazy" />
+          <CardImage src={product.imageUrl} alt={product.nameAr || ''} />
         ) : (
           <div className="product-card-placeholder">
             <Icon name="image" size={38} />
@@ -577,6 +629,7 @@ function ProductCard({
           </div>
         )}
       </div>
+
 
       <div className="product-card-content">
         <h3 className="product-card-title" title={product.nameAr}>
@@ -806,12 +859,20 @@ function rowToProductWithMapping(row, mapping) {
     return String(row[col] ?? '').trim();
   };
 
-  const rawWeight = get('weight');
-  let unit = get('unit');
-  if (!unit) {
+  const nameAr = get('nameAr');
+  const nameEn = get('nameEn');
+
+  // Intelligently and automatically capture weight and unit from product names
+  const extracted = extractWeightAndUnit(nameAr) || extractWeightAndUnit(nameEn);
+  let rawWeight = extracted?.weight || get('weight');
+  let unit = extracted?.unit || get('unit');
+
+  if (!unit && rawWeight) {
     unit = extractUnitFromWeight(rawWeight) || 'g';
-  } else {
+  } else if (unit) {
     unit = normalizeUnit(unit);
+  } else {
+    unit = 'g';
   }
 
   const barcode = get('barcode');
@@ -821,8 +882,8 @@ function rowToProductWithMapping(row, mapping) {
 
   return {
     id: newId(),
-    nameAr: get('nameAr'),
-    nameEn: get('nameEn'),
+    nameAr,
+    nameEn,
     categoryAr: get('categoryAr'),
     categoryEn: get('categoryEn'),
     descriptionAr: get('descriptionAr'),
@@ -832,7 +893,7 @@ function rowToProductWithMapping(row, mapping) {
     variants: [
       {
         ...emptyVariant(),
-        weight: rawWeight,
+        weight: rawWeight || '',
         unit: unit,
         sku: barcode,
         qtyPerCarton: qtyCarton,
@@ -842,6 +903,7 @@ function rowToProductWithMapping(row, mapping) {
     ],
   };
 }
+
 
 function productFromRow(row) {
   return {
@@ -860,7 +922,6 @@ function productFromRow(row) {
 
 function BrandEditor({ brand, brands = [], onClose, onSaved, notify }) {
   const [nameAr, setNameAr] = useState(brand?.nameAr || '');
-  const [nameEn, setNameEn] = useState(brand?.nameEn || '');
   const [logo, setLogo] = useState(null);
   const [logoUrl, setLogoUrl] = useState(brand?.logoUrl || '');
   const [preview, setPreview] = useState(brand?.logoUrl || '');
@@ -910,12 +971,12 @@ function BrandEditor({ brand, brands = [], onClose, onSaved, notify }) {
 
   const submit = async (event) => {
     event.preventDefault();
-    if (!nameAr.trim()) return notify('اسم البراند بالعربي مطلوب.', 'warning');
+    if (!nameAr.trim()) return notify('اسم البراند مطلوب.', 'warning');
     setBusy(true);
     try {
       const formData = new FormData();
       formData.set('nameAr', nameAr);
-      formData.set('nameEn', nameEn);
+      formData.set('nameEn', '');
       formData.set('settings', JSON.stringify(mergeSettings(brand?.settings)));
       formData.set('logoUrl', logoUrl);
       if (logo) formData.set('logo', logo);
@@ -929,6 +990,7 @@ function BrandEditor({ brand, brands = [], onClose, onSaved, notify }) {
       setBusy(false);
     }
   };
+
 
   return (
     <>
@@ -1012,14 +1074,12 @@ function BrandEditor({ brand, brands = [], onClose, onSaved, notify }) {
             />
           </div>
 
-          <div className="form-grid two">
-            <Field label="اسم البراند بالعربي *">
-              <input value={nameAr} onChange={(event) => setNameAr(event.target.value)} placeholder="مثال: كات فود" autoFocus />
-            </Field>
-            <Field label="اسم البراند بالإنجليزية">
-              <input value={nameEn} dir="ltr" onChange={(event) => setNameEn(event.target.value)} placeholder="CAT FOOD" />
+          <div className="form-grid">
+            <Field label="اسم البراند *">
+              <input value={nameAr} onChange={(event) => setNameAr(event.target.value)} placeholder="مثال: كات فوود" autoFocus />
             </Field>
           </div>
+
 
           <div className="modal-actions">
             <button type="button" className="button button-ghost" onClick={onClose}>إلغاء</button>
@@ -1216,10 +1276,15 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
 
         <div className="media-picker-body">
           {loading ? (
-            <div className="media-picker-loading">
-              <span className="spinner-dot" /> جاري تحميل الصور…
+            <div className="media-picker-grid">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="gallery-item-skeleton">
+                  <div className="card-image-skeleton" style={{ width: '100%', height: '110px' }} />
+                </div>
+              ))}
             </div>
           ) : mediaList.length === 0 ? (
+
             <div className="media-picker-empty">
               <Icon name="image" size={36} />
               <p>لا توجد صور في هذا المجلد بعد</p>
@@ -1249,7 +1314,7 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
                     title={item.filename}
                   >
                     <div className="media-thumb-img-wrap">
-                      <img src={item.url} alt={item.filename} loading="lazy" />
+                      <CardImage src={item.url} alt={item.filename} />
                       {isSelected && (
                         <div className="media-thumb-selected-check">
                           <Icon name="check" size={14} />
@@ -1809,8 +1874,16 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
           </div>
 
           {loading ? (
-            <div className="gallery-loading-state">
-              <span className="spinner-dot" /> جاري تحميل الصور…
+            <div className="gallery-media-grid">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="media-item-card gallery-item-skeleton">
+                  <div className="card-image-skeleton" style={{ width: '100%', height: '160px' }} />
+                  <div style={{ padding: '10px' }}>
+                    <div className="skeleton-line" style={{ width: '70%', height: '12px', marginBottom: '6px' }} />
+                    <div className="skeleton-line" style={{ width: '40%', height: '10px' }} />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : mediaList.length === 0 ? (
             <div className="gallery-empty-state">
@@ -1834,12 +1907,13 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
                     onClick={() => setPreviewMedia(item)}
                     title="تكبير ومعاينة الصورة"
                   >
-                    <img src={item.url} alt={item.filename} loading="lazy" />
+                    <CardImage src={item.url} alt={item.filename} />
                     <div className="media-item-hover-overlay">
                       <Icon name="eye" size={20} />
                       <span>معاينة مكبرة</span>
                     </div>
                   </div>
+
 
                   <div className="media-item-details">
                     <div className="media-item-title-row">
@@ -1927,6 +2001,7 @@ export default function Home() {
   const [productModal, setProductModal] = useState(null);
   const [importRows, setImportRows] = useState([]);
   const [rawFileState, setRawFileState] = useState(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -2066,13 +2141,18 @@ export default function Home() {
     return result.brands;
   }, []);
   const loadBrand = useCallback(async (id) => {
-    const result = await request('/api/brands/' + id);
-    setActiveBrand(result.brand);
-    setSelectedIds(new Set());
+    setLoading(true);
     try {
-      localStorage.setItem(CACHE_ACTIVE_KEY, JSON.stringify(result.brand));
-    } catch {}
-    return result.brand;
+      const result = await request('/api/brands/' + id);
+      setActiveBrand(result.brand);
+      setSelectedIds(new Set());
+      try {
+        localStorage.setItem(CACHE_ACTIVE_KEY, JSON.stringify(result.brand));
+      } catch {}
+      return result.brand;
+    } finally {
+      setLoading(false);
+    }
   }, []);
   const refresh = useCallback(async (brandId) => {
     const list = await loadBrands();
@@ -2082,19 +2162,79 @@ export default function Home() {
   }, [loadBrands, loadBrand]);
 
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem(CACHE_BRANDS_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length) setBrands(parsed);
+    const handleUrlBrand = (brandList) => {
+      if (typeof window === 'undefined' || !brandList?.length) return false;
+      const urlParams = new URLSearchParams(window.location.search);
+      const brandParam = urlParams.get('brand');
+      if (brandParam) {
+        const decoded = decodeURIComponent(brandParam).trim().toLowerCase();
+        const matched = brandList.find(
+          (b) =>
+            (b.nameAr || '').trim().toLowerCase() === decoded ||
+            b.id === brandParam ||
+            (b.nameEn || '').trim().toLowerCase() === decoded
+        );
+        if (matched) {
+          setActiveBrand(matched);
+          loadBrand(matched.id).catch(() => {});
+          go('catalog');
+          return true;
+        }
       }
-      const cachedActive = localStorage.getItem(CACHE_ACTIVE_KEY);
-      if (cachedActive) {
-        const parsed = JSON.parse(cachedActive);
-        if (parsed && parsed.id) setActiveBrand(parsed);
+      return false;
+    };
+
+    const init = async () => {
+      try {
+        const cached = localStorage.getItem(CACHE_BRANDS_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length) {
+            setBrands(parsed);
+            handleUrlBrand(parsed);
+          }
+        }
+        const cachedActive = localStorage.getItem(CACHE_ACTIVE_KEY);
+        if (cachedActive && !new URLSearchParams(window.location.search).get('brand')) {
+          const parsed = JSON.parse(cachedActive);
+          if (parsed && parsed.id) setActiveBrand(parsed);
+        }
+      } catch {}
+
+      try {
+        const list = await loadBrands();
+        const urlHandled = handleUrlBrand(list);
+        if (!urlHandled) {
+          const targetId = activeIdRef.current || list[0]?.id;
+          if (targetId) await loadBrand(targetId);
+          else setActiveBrand(null);
+        }
+      } catch (error) {
+        notify(error.message, 'warning');
       }
-    } catch {}
-    refresh().catch((error) => notify(error.message, 'warning'));
+    };
+
+    init();
+
+    const onPopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const brandParam = urlParams.get('brand');
+      if (brandParam && brands.length) {
+        const decoded = decodeURIComponent(brandParam).trim().toLowerCase();
+        const matched = brands.find(
+          (b) =>
+            (b.nameAr || '').trim().toLowerCase() === decoded ||
+            b.id === brandParam
+        );
+        if (matched) {
+          setActiveBrand(matched);
+          go('catalog');
+          loadBrand(matched.id).catch(() => {});
+        }
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -2104,13 +2244,20 @@ export default function Home() {
   }, [toast]);
 
   const go = (next) => { setView(next); setMobileMenu(false); };
-  const chooseBrand = async (brand) => {
-    try {
-      setSelectedIds(new Set());
-      await loadBrand(brand.id);
-      go('catalog');
-    } catch (error) { notify(error.message, 'warning'); }
+  const chooseBrand = (brand) => {
+    setSelectedIds(new Set());
+    setActiveBrand(brand);
+    go('catalog');
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('brand', brand.nameAr || brand.id);
+        window.history.pushState({ brandId: brand.id, brandName: brand.nameAr }, '', url.toString());
+      } catch {}
+    }
+    loadBrand(brand.id).catch((error) => notify(error.message, 'warning'));
   };
+
   const onBrandSaved = async (brand) => {
     setBrandModal(null);
     await refresh(brand.id);
@@ -2358,8 +2505,8 @@ export default function Home() {
     a.click();
     URL.revokeObjectURL(url);
   };
-  const readExcel = async (event) => {
-    const file = event.target.files?.[0];
+  const readExcel = async (eventOrFile) => {
+    const file = eventOrFile?.target?.files?.[0] || (eventOrFile instanceof File ? eventOrFile : null);
     if (!file) return;
     try {
       const XLSX = await import('xlsx');
@@ -2380,7 +2527,22 @@ export default function Home() {
     } catch (error) {
       notify(error.message || 'تعذر قراءة ملف Excel.', 'warning');
     } finally {
-      event.target.value = '';
+      if (eventOrFile?.target) {
+        eventOrFile.target.value = '';
+      }
+    }
+  };
+
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const droppedFile = e.dataTransfer?.files?.[0];
+    if (droppedFile) {
+      if (!droppedFile.name.match(/\.(xlsx|xls)$/i)) {
+        notify('يرجى رفع ملف بصيغة Excel (.xlsx أو .xls)', 'warning');
+        return;
+      }
+      readExcel(droppedFile);
     }
   };
 
@@ -2467,7 +2629,7 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = (activeBrand.nameEn || activeBrand.nameAr || 'catalog').replace(/\s+/g, '-') + '-catalog.pdf';
+      a.download = (activeBrand.nameAr || 'catalog').replace(/\s+/g, '-') + '-catalog.pdf';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2519,13 +2681,13 @@ export default function Home() {
 
   return <main className="studio-shell" suppressHydrationWarning>
     <aside className={['app-sidebar', mobileMenu && 'is-open'].filter(Boolean).join(' ')}>
-      <div className="sidebar-brand">
-        <span className="brand-mark">C</span>
-        <div>
-          <strong>Catalog Studio</strong>
-          <small>لوحة إدارة الكتالوجات</small>
+      <div className="sidebar-brand sidebar-brand--catfood">
+        <div className="sidebar-catfood-brand">
+          <strong className="sidebar-brand-ar">كات فوود</strong>
+          <span className="sidebar-brand-en">CAT FOOD</span>
         </div>
       </div>
+
       <nav className="sidebar-nav">
         {nav.map((item) => (
           <button
@@ -2612,7 +2774,42 @@ export default function Home() {
           )}
         </div>
       </header>
-      {view === 'dashboard' && <section className="page-shell dashboard"><div className="dashboard-hero"><div><h2>كل براند ومنتجاته في مكان واحد.</h2><p>أنشئ براند، ارفع الشعار، راجع Excel قبل الإدراج، ثم عدّل أي صفحة يدويًا وصدّر كتالوج PDF.</p><div className="hero-actions"><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button>{activeBrand && <button className="button button-ghost" onClick={() => go('catalog')}><Icon name="folder" size={18} /> فتح الصفحات</button>}</div></div><div className="dashboard-brand-card">{activeBrand ? <><BrandBadge brand={activeBrand} large /><div><span>البراند النشط</span><strong>{activeBrand.nameAr}</strong><small>{products.length} صفحة منتج</small></div></> : <><span className="hero-icon"><Icon name="tag" size={27} /></span><p>لا يوجد براند نشط</p></>}</div></div><div className="stats-grid"><Stat icon="tag" label="إجمالي البراندات" value={brands.length} /><Stat icon="file" label="صفحات البراند النشط" value={products.length} /><Stat icon="image" label="صور محفوظة" value={products.filter((item) => item.imageUrl).length} /><Stat icon="grid" label="مقاسات مسجلة" value={products.reduce((total, item) => total + (item.variants?.length || 0), 0)} /></div><section className="dashboard-section"><div className="section-bar"><div><h2>آخر البراندات</h2><p>اختر براندًا لتعديل صفحاته أو إعداداته.</p></div><button className="button button-ghost" onClick={() => go('brands')}>كل البراندات <Icon name="arrow" size={16} /></button></div>{brands.length ? <div className="brand-grid">{brands.slice(0, 4).map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section></section>}
+      {view === 'dashboard' && (
+        <section className="page-shell dashboard">
+          <div className="stats-grid">
+            <Stat icon="tag" label="إجمالي البراندات" value={brands.length} />
+            <Stat icon="file" label="صفحات البراند النشط" value={products.length} />
+            <Stat icon="image" label="صور محفوظة" value={products.filter((item) => item.imageUrl).length} />
+            <Stat icon="grid" label="مقاسات مسجلة" value={products.reduce((total, item) => total + (item.variants?.length || 0), 0)} />
+          </div>
+          <section className="dashboard-section">
+            <div className="section-bar">
+              <div>
+                <h2>آخر البراندات</h2>
+                <p>اختر براندًا لتعديل صفحاته أو إعداداته.</p>
+              </div>
+              <button className="button button-ghost" onClick={() => go('brands')}>
+                كل البراندات <Icon name="arrow" size={16} />
+              </button>
+            </div>
+            {brands.length ? (
+              <div className="brand-grid">
+                {brands.slice(0, 4).map((brand) => (
+                  <BrandCard
+                    key={brand.id}
+                    brand={brand}
+                    selected={activeBrand?.id === brand.id}
+                    onOpen={() => chooseBrand(brand)}
+                    onEdit={() => setBrandModal(brand)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState onNew={() => setBrandModal({})} />
+            )}
+          </section>
+        </section>
+      )}
       {view === 'brands' && <section className="page-shell"><div className="section-bar"><div><h2>إدارة البراندات</h2><p>أضف براندات متعددة وغيّر الشعار والهوية في أي وقت.</p></div><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button></div>{brands.length ? <div className="brand-grid brand-grid--full">{brands.map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} onDelete={() => removeBrand(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section>}
       {view === 'catalog' && (
         <section className="page-shell">
@@ -2636,13 +2833,13 @@ export default function Home() {
                         >
                           {brands.map((b) => (
                             <option key={b.id} value={b.id}>
-                              {b.nameAr} {b.nameEn ? '(' + b.nameEn + ')' : ''}
+                              {b.nameAr}
                             </option>
                           ))}
                         </select>
                       )}
                     </div>
-                    <p>{activeBrand.nameEn || 'Product catalog'} · كتالوج كامل بـ {products.length} صفحة</p>
+                    <p>كتالوج كامل بـ {products.length} صفحة</p>
                   </div>
                 </div>
 
@@ -2741,17 +2938,13 @@ export default function Home() {
                 </div>
               </div>
 
-              {products.length > 1 && !query && (
-                <div className="catalog-reorder-banner">
-                  <span>
-                    <Icon name="grip" size={15} />
-                    اسحب وأفلت لإعادة ترتيب الصفحات، أو استخدم الأسهم. الترتيب ينعكس تلقائياً في PDF.
-                  </span>
-                  {savingOrder && <small>جاري الحفظ…</small>}
+              {loading && !products.length ? (
+                <div className={['product-grid', `product-grid--cols-${catalogCols}`].join(' ')}>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <ProductCardSkeleton key={i} />
+                  ))}
                 </div>
-              )}
-
-              {products.length ? (
+              ) : products.length ? (
                 <>
                   <DndContext
                     sensors={sensors}
@@ -2864,7 +3057,206 @@ export default function Home() {
         </section>
       )}
       {view === 'gallery' && <GalleryView brands={brands} activeBrand={activeBrand} notify={notify} setConfirmModal={setConfirmModal} />}
-      {view === 'import' && <section className="page-shell import-page">{activeBrand ? <><div className="import-hero"><span className="hero-icon"><Icon name="upload" size={27} /></span><p className="eyebrow">EXCEL COLUMN MAPPING & PREVIEW</p><h2>استيراد صفحات {activeBrand.nameAr}</h2><p>ارفع ملف Excel، حدد مطابقة كل عامود مع العنصر المناسب له، عاين البيانات، ثم أدرج الصفحات في الكتالوج.</p></div>{!rawFileState && !importRows.length && <div className="import-actions"><button className="import-card" onClick={downloadTemplate}><span><Icon name="download" size={23} /></span><div><strong>1. تنزيل قالب Excel</strong><p>يشمل الأعمدة الافتراضية وحقل variants للمقاسات المتعددة.</p></div><Icon name="arrow" size={19} /></button><button className="import-card" onClick={() => importInput.current?.click()}><span><Icon name="upload" size={23} /></span><div><strong>2. اختيار ملف Excel</strong><p>يدعم أي ملف XLSX أو XLS بأي ترتيب للأعمدة ويفتح واجهة المطابقة.</p></div><Icon name="arrow" size={19} /></button><input ref={importInput} type="file" accept=".xlsx,.xls" onChange={readExcel} /></div>}{rawFileState && !importRows.length && <section className="import-mapping"><div className="mapping-header"><div><h3><Icon name="tag" size={18} /> تحديد ومطابقة أعمدة الملف</h3><p>اختر لكل عنصر في الكتالوج العامود المقابل له في ملف Excel المرفوع:</p></div><div className="mapping-file-info"><span className="mapping-badge">الملف: {rawFileState.filename} ({rawFileState.rows.length} صف)</span><button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button></div></div><div className="mapping-grid">{MAPPABLE_FIELDS.map((field) => <div key={field.key} className={['mapping-field-card', field.required && 'is-required'].filter(Boolean).join(' ')}><div className="mapping-field-label"><span>{field.label}</span>{field.required ? <span className="req">مطلوب</span> : <small className="mapping-field-hint">{field.hint}</small>}</div><select className="mapping-select" value={rawFileState.mapping[field.key] || ''} onChange={(e) => updateColumnMapping(field.key, e.target.value)}><option value="">-- تجاهل هذا الحقل --</option>{rawFileState.headers.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>)}</div><div className="mapping-preview-section"><h4>معاينة حية للمطابقة (أول {Math.min(3, rawFileState.rows.length)} صفوف):</h4><div className="table-wrap"><table><thead><tr><th>الاسم بالعربي</th><th>الاسم بالإنجليزي</th><th>سعر الحبة</th><th>سعر الكرتون</th><th>عدد الكرتون</th><th>الوزن / الحجم</th><th>الباركود</th></tr></thead><tbody>{rawFileState.rows.slice(0, 3).map((r, i) => { const p = rowToProductWithMapping(r, rawFileState.mapping); const v = p.variants[0] || {}; return <tr key={i}><td><strong>{p.nameAr || '—'}</strong></td><td>{p.nameEn || '—'}</td><td>{v.pricePerPiece || '—'}</td><td>{v.pricePerCarton || '—'}</td><td>{v.qtyPerCarton || '—'}</td><td>{v.weight ? (v.weight + ' ' + (v.unit || '')) : '—'}</td><td dir="ltr">{p.barcode || '—'}</td></tr>; })}</tbody></table></div></div><div className="mapping-actions-bar"><button className="button button-ghost" onClick={resetImport}>إلغاء واختيار ملف آخر</button><button className="button button-primary" onClick={applyColumnMapping}><Icon name="check" size={17} /> تطبيق المطابقة ومعاينة البيانات ({rawFileState.rows.length} صف)</button></div></section>}{importRows.length > 0 && <section className="import-review"><div className="review-header"><div><h3>معاينة البيانات قبل الإدراج</h3><p>{importRows.length} صف جاهز للمراجعة. يمكنك تعديل أي صف أو حذفه، ثم الضغط على إدراج الصفحات في الكتالوج.</p></div><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{rawFileState && <button className="button button-ghost" onClick={() => setImportRows([])} title="العودة لشاشة مطابقة وتحديد الأعمدة"><Icon name="settings" size={15} /> تعديل مطابقة الأعمدة</button>}<button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button><button className="button button-primary" disabled={busy} onClick={insertImportRows}><Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}</button></div></div><div className="table-wrap"><table><thead><tr><th>المنتج</th><th>المقاسات</th><th>الباركود</th><th>إجراء</th></tr></thead><tbody>{importRows.map((row, index) => <tr key={row.id}><td><strong>{row.nameAr || 'بدون اسم عربي'}</strong><small>{row.nameEn}</small></td><td>{row.variants.map((variant) => variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : '—').join('، ')}</td><td dir="ltr">{row.barcode || '—'}</td><td><button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}><Icon name="edit" size={15} /> تعديل</button><button className="table-action danger" onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15} /> حذف</button></td></tr>)}</tbody></table></div></section>}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
+      {view === 'import' && (
+        <section className="page-shell import-page">
+          {activeBrand ? (
+            <>
+              {!rawFileState && !importRows.length && (
+                <>
+                  <div className="import-top-bar">
+                    <div>
+                      <h2>استيراد صفحات {activeBrand.nameAr}</h2>
+                      <p style={{ margin: '4px 0 0', color: '#71717a', fontSize: '13.5px' }}>
+                        ارفع ملف Excel وسيقوم النظام بمطابقة الأعمدة والتقاط الأوزان والمقاسات تلقائياً.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="import-template-btn-small"
+                      onClick={downloadTemplate}
+                      title="تحميل ملف Excel نموذجي"
+                    >
+                      <Icon name="download" size={14} />
+                      <span>تنزيل القالب</span>
+                    </button>
+                  </div>
+
+                  <div
+                    className={['import-big-dropzone', isDraggingFile && 'is-dragging-over'].filter(Boolean).join(' ')}
+                    onClick={() => importInput.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingFile(true);
+                    }}
+                    onDragLeave={() => setIsDraggingFile(false)}
+                    onDrop={handleFileDrop}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') importInput.current?.click();
+                    }}
+                  >
+                    <div className="import-big-icon-wrap">
+                      <Icon name="upload" size={32} />
+                    </div>
+                    <div className="import-big-title">اضغط لاختيار ملف Excel أو اسحبه وأفلته هنا</div>
+                    <p className="import-big-sub">
+                      يدعم ملفات XLSX و XLS بأي ترتيب للأعمدة، مع التقاط تلقائي وذكي للأوزان والمقاسات من أسماء المنتجات.
+                    </p>
+                    <span className="import-big-badge">
+                      <Icon name="check" size={13} style={{ marginLeft: 5 }} /> التقاط تلقائي للوزن والحجم والمقاسات
+                    </span>
+                    <input
+                      ref={importInput}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      style={{ display: 'none' }}
+                      onChange={readExcel}
+                    />
+                  </div>
+                </>
+              )}
+
+              {rawFileState && !importRows.length && (
+                <section className="import-mapping">
+                  <div className="mapping-header">
+                    <div>
+                      <h3><Icon name="tag" size={18} /> تحديد ومطابقة أعمدة الملف</h3>
+                      <p>اختر لكل عنصر في الكتالوج العامود المقابل له في ملف Excel المرفوع:</p>
+                    </div>
+                    <div className="mapping-file-info">
+                      <span className="mapping-badge">الملف: {rawFileState.filename} ({rawFileState.rows.length} صف)</span>
+                      <button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button>
+                    </div>
+                  </div>
+                  <div className="mapping-grid">
+                    {MAPPABLE_FIELDS.map((field) => (
+                      <div key={field.key} className={['mapping-field-card', field.required && 'is-required'].filter(Boolean).join(' ')}>
+                        <div className="mapping-field-label">
+                          <span>{field.label}</span>
+                          {field.required ? <span className="req">مطلوب</span> : <small className="mapping-field-hint">{field.hint}</small>}
+                        </div>
+                        <select
+                          className="mapping-select"
+                          value={rawFileState.mapping[field.key] || ''}
+                          onChange={(e) => updateColumnMapping(field.key, e.target.value)}
+                        >
+                          <option value="">-- تجاهل هذا الحقل --</option>
+                          {rawFileState.headers.map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mapping-preview-section">
+                    <h4>معاينة حية للمطابقة (أول {Math.min(3, rawFileState.rows.length)} صفوف):</h4>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>الاسم بالعربي</th>
+                            <th>الاسم بالإنجليزي</th>
+                            <th>سعر الحبة</th>
+                            <th>سعر الكرتون</th>
+                            <th>عدد الكرتون</th>
+                            <th>الوزن / الحجم</th>
+                            <th>الباركود</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rawFileState.rows.slice(0, 3).map((r, i) => {
+                            const p = rowToProductWithMapping(r, rawFileState.mapping);
+                            const v = p.variants[0] || {};
+                            return (
+                              <tr key={i}>
+                                <td><strong>{p.nameAr || '—'}</strong></td>
+                                <td>{p.nameEn || '—'}</td>
+                                <td>{v.pricePerPiece || '—'}</td>
+                                <td>{v.pricePerCarton || '—'}</td>
+                                <td>{v.qtyPerCarton || '—'}</td>
+                                <td>{v.weight ? (v.weight + ' ' + (v.unit || '')) : '—'}</td>
+                                <td dir="ltr">{p.barcode || '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="mapping-actions-bar">
+                    <button className="button button-ghost" onClick={resetImport}>إلغاء واختيار ملف آخر</button>
+                    <button className="button button-primary" onClick={applyColumnMapping}>
+                      <Icon name="check" size={17} /> تطبيق المطابقة ومعاينة البيانات ({rawFileState.rows.length} صف)
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {importRows.length > 0 && (
+                <section className="import-review">
+                  <div className="review-header">
+                    <div>
+                      <h3>معاينة البيانات قبل الإدراج</h3>
+                      <p>{importRows.length} صف جاهز للمراجعة. يمكنك تعديل أي صف أو حذفه، ثم الضغط على إدراج الصفحات في الكتالوج.</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {rawFileState && (
+                        <button className="button button-ghost" onClick={() => setImportRows([])} title="العودة لشاشة مطابقة وتحديد الأعمدة">
+                          <Icon name="settings" size={15} /> تعديل مطابقة الأعمدة
+                        </button>
+                      )}
+                      <button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button>
+                      <button className="button button-primary" disabled={busy} onClick={insertImportRows}>
+                        <Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>المنتج</th>
+                          <th>المقاسات</th>
+                          <th>الباركود</th>
+                          <th>إجراء</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importRows.map((row, index) => (
+                          <tr key={row.id}>
+                            <td>
+                              <strong>{row.nameAr || 'بدون اسم عربي'}</strong>
+                              <small>{row.nameEn}</small>
+                            </td>
+                            <td>
+                              {row.variants.map((variant) => (variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : '—')).join('، ')}
+                            </td>
+                            <td dir="ltr">{row.barcode || '—'}</td>
+                            <td>
+                              <button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}>
+                                <Icon name="edit" size={15} /> تعديل
+                              </button>
+                              <button
+                                className="table-action danger"
+                                onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                              >
+                                <Icon name="trash" size={15} /> حذف
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+            </>
+          ) : (
+            <NeedsBrand onCreate={() => setBrandModal({})} />
+          )}
+        </section>
+      )}
       {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'description', label: 'الوصف' }, { key: 'prices', label: 'سعر الحبة' }, { key: 'cartonPrice', label: 'سعر الكرتون' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key] !== false} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
     </section>
     {exporting && activeBrand && (
@@ -3014,7 +3406,7 @@ function BrandCard({ brand, selected, onOpen, onEdit, onDelete }) {
           <img src={brand.logoUrl} alt={brand.nameAr} className="brand-card-logo-img" />
         ) : (
           <div className="brand-card-logo-fallback">
-            <b>{(brand?.nameAr || brand?.nameEn || 'B').slice(0, 1)}</b>
+            <b>{(brand?.nameAr || 'B').slice(0, 1)}</b>
           </div>
         )}
         {selected && <span className="brand-active-tag">البراند النشط</span>}
@@ -3023,7 +3415,6 @@ function BrandCard({ brand, selected, onOpen, onEdit, onDelete }) {
       <div className="brand-card-info">
         <div className="brand-card-titles">
           <h3>{brand.nameAr}</h3>
-          <p>{brand.nameEn || 'بدون اسم إنجليزي'}</p>
         </div>
         <div className="brand-card-badge">
           <Icon name="file" size={13} />

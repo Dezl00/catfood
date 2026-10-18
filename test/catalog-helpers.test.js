@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   autoDetectMapping,
   extractUnitFromWeight,
+  extractWeightAndUnit,
   getTableColumns,
   computeProductLayout,
   getVariantsPerPage,
@@ -67,6 +68,23 @@ describe('extractUnitFromWeight', () => {
   it('returns empty string for empty input', () => {
     assert.equal(extractUnitFromWeight(''), '');
     assert.equal(extractUnitFromWeight(null), '');
+  });
+});
+
+describe('extractWeightAndUnit', () => {
+  it('extracts weight and unit from product names in Arabic and English', () => {
+    assert.deepEqual(extractWeightAndUnit('طعام قطط بالدجاج 400 جم'), { weight: '400', unit: 'g' });
+    assert.deepEqual(extractWeightAndUnit('دراي فود كيتن 1.5 كجم'), { weight: '1.5', unit: 'kg' });
+    assert.deepEqual(extractWeightAndUnit('Chicken Cat Food 85g'), { weight: '85', unit: 'g' });
+    assert.deepEqual(extractWeightAndUnit('شامبو للقطط 250 مل'), { weight: '250', unit: 'ml' });
+    assert.deepEqual(extractWeightAndUnit('رمل قطط 10 لتر'), { weight: '10', unit: 'L' });
+    assert.deepEqual(extractWeightAndUnit('Dry Food 3.5kg'), { weight: '3.5', unit: 'kg' });
+  });
+
+  it('returns null if no weight or unit is in the text', () => {
+    assert.equal(extractWeightAndUnit('طعام قطط ممتاز'), null);
+    assert.equal(extractWeightAndUnit(''), null);
+    assert.equal(extractWeightAndUnit(null), null);
   });
 });
 
