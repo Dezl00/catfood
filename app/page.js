@@ -5029,11 +5029,6 @@ export default function Home() {
         <section className="page-shell settings-page">
           {activeBrand ? (
             <form className="settings-card" onSubmit={updateBrandSettings}>
-              <div className="settings-intro">
-                <h2>إعدادات {activeBrand.nameAr}</h2>
-                <p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p>
-              </div>
-
               {/* 1. قسم هيدر وشعار الكتالوج */}
               <div className="settings-section">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
@@ -5220,19 +5215,10 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="settings-save" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="settings-save">
                 <button className="button button-primary" disabled={busy || uploadingHeaderLogo}>
                   <Icon name="check" size={18} />
                   {busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}
-                </button>
-                <button
-                  type="button"
-                  className="button button-ghost"
-                  onClick={applyHeaderToAllBrands}
-                  disabled={busy || applyingAllHeaders}
-                >
-                  <Icon name="copy" size={16} />
-                  {applyingAllHeaders ? 'جاري التطبيق…' : 'تطبيق هذا الهيدر على جميع البراندات'}
                 </button>
               </div>
             </form>
