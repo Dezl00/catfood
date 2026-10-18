@@ -17,7 +17,7 @@ export async function POST(request) {
     try {
       await createMediaRecord({
         brandId: brandId || null,
-        folder: brandId || folder,
+        folder: folder || (brandId || 'general'),
         filename: detail.originalFilename || file.name || 'image',
         url: detail.url,
         publicId: detail.publicId,

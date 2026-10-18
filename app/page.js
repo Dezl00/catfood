@@ -139,6 +139,21 @@ async function optimizeImageForUpload(file) {
   });
 }
 
+function optimizeCloudinaryUrl(url, { width = 1200, quality = 'auto' } = {}) {
+  if (!url || typeof url !== 'string') return url || '';
+  if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+    if (url.includes('/upload/f_auto,q_auto')) {
+      if (width && !url.includes('w_')) {
+        return url.replace('/upload/f_auto,q_auto', `/upload/f_auto,q_${quality},w_${width},c_limit`);
+      }
+      return url;
+    }
+    const transform = `f_auto,q_${quality}${width ? `,w_${width},c_limit` : ''}/`;
+    return url.replace('/upload/', `/upload/${transform}`);
+  }
+  return url;
+}
+
 function UploadZone({ preview, onFile, label, note, compact = false }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
@@ -246,10 +261,11 @@ function ProductSheet({ brand, product, variants: customVariants }) {
       <div className="cf-image-card" style={{ height: `${layout.cardHeight}pt` }}>
         {product.imageUrl ? (
           <img
-            src={product.imageUrl}
+            src={optimizeCloudinaryUrl(product.imageUrl, { width: 1200 })}
             alt={product.nameAr || product.nameEn || ''}
             className="cf-product-image-img"
             style={{ maxHeight: `${layout.cardHeight - 52}pt` }}
+            loading="lazy"
           />
         ) : (
           <div className="cf-product-image-empty">
@@ -450,11 +466,7 @@ function CardImage({ src, alt }) {
 
   // Cloudinary image auto-format & quality optimization for lightning speed
   const optimizedSrc = useMemo(() => {
-    if (!src) return '';
-    if (src.includes('cloudinary.com') && src.includes('/upload/') && !src.includes('f_auto')) {
-      return src.replace('/upload/', '/upload/f_auto,q_auto/');
-    }
-    return src;
+    return optimizeCloudinaryUrl(src, { width: 480 });
   }, [src]);
 
   useEffect(() => {
@@ -990,7 +1002,7 @@ function CatalogPreviewModal({
                     ) : (
                       <div className="preview-thumb-product">
                         {page.product.imageUrl ? (
-                          <img src={page.product.imageUrl} alt="" loading="lazy" />
+                          <img src={optimizeCloudinaryUrl(page.product.imageUrl, { width: 140 })} alt="" loading="lazy" />
                         ) : (
                           <Icon name="image" size={16} />
                         )}
@@ -2191,6 +2203,7 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
   const [selectedFolder, setSelectedFolder] = useState(activeBrandId || 'all');
   const [search, setSearch] = useState('');
   const [selectedMedia, setSelectedMedia] = useState(null);
+  const [previewModalMedia, setPreviewModalMedia] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -2203,7 +2216,8 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
           params.set('folder', 'general');
         } else {
           params.set('folder', selectedFolder);
-          params.set('brandId', selectedFolder);
+          const isBrand = brands.some((b) => b.id === selectedFolder);
+          if (isBrand) params.set('brandId', selectedFolder);
         }
       }
       if (search.trim()) {
@@ -2217,7 +2231,7 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
     } finally {
       setLoading(false);
     }
-  }, [selectedFolder, search, notify]);
+  }, [selectedFolder, search, notify, brands]);
 
   useEffect(() => {
     fetchMedia();
@@ -2235,7 +2249,8 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
         formData.append('files', optimized);
       }
       formData.append('folder', targetFolder);
-      if (targetFolder !== 'general') formData.append('brandId', targetFolder);
+      const isBrand = brands.some((b) => b.id === targetFolder);
+      if (isBrand) formData.append('brandId', targetFolder);
       const res = await request('/api/media', { method: 'POST', body: formData });
       notify(`تم رفع ${res.count || files.length} صورة إلى المعرض.`);
       await fetchMedia();
@@ -2282,7 +2297,7 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
               {foldersData?.generalCount !== undefined && <b className="folder-tab-badge">{foldersData.generalCount}</b>}
             </button>
             {brands.map((b) => {
-              const count = foldersData?.brandFolders?.find((bf) => bf.id === b.id)?.count || 0;
+              const count = foldersData?.brandFolders?.find((bf) => bf.id === b.id)?.count ?? foldersData?.brandFolders?.find((bf) => bf.id === b.id)?.imageCount ?? 0;
               return (
                 <button
                   key={b.id}
@@ -2292,6 +2307,21 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
                 >
                   <Icon name="tag" size={15} />
                   <span>{b.nameAr}</span>
+                  <b className="folder-tab-badge">{count}</b>
+                </button>
+              );
+            })}
+            {foldersData?.customFolders?.map((cf) => {
+              const count = cf.count ?? cf.imageCount ?? 0;
+              return (
+                <button
+                  key={cf.id}
+                  type="button"
+                  className={['media-folder-tab', selectedFolder === cf.name && 'is-active'].filter(Boolean).join(' ')}
+                  onClick={() => setSelectedFolder(cf.name)}
+                >
+                  <Icon name="folder" size={15} />
+                  <span>{cf.name}</span>
                   <b className="folder-tab-badge">{count}</b>
                 </button>
               );
@@ -2329,15 +2359,10 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
 
         <div className="media-picker-body">
           {loading ? (
-            <div className="media-picker-grid">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="gallery-item-skeleton">
-                  <div className="card-image-skeleton" style={{ width: '100%', height: '110px' }} />
-                </div>
-              ))}
+            <div className="gallery-clean-loader">
+              <span className="cf-image-spinner" style={{ width: 28, height: 28 }} />
             </div>
           ) : mediaList.length === 0 ? (
-
             <div className="media-picker-empty">
               <Icon name="image" size={36} />
               <p>لا توجد صور في هذا المجلد بعد</p>
@@ -2373,6 +2398,17 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
                           <Icon name="check" size={14} />
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="media-thumb-preview-action"
+                        title="معاينة الصورة بالحجم الكامل"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewModalMedia(item);
+                        }}
+                      >
+                        <Icon name="eye" size={14} />
+                      </button>
                     </div>
                     <div className="media-thumb-caption">
                       <span className="media-thumb-name">{item.filename}</span>
@@ -2401,6 +2437,16 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
           </div>
           <div className="modal-actions-inline">
             <button type="button" className="button button-ghost" onClick={onClose}>إلغاء</button>
+            {selectedMedia && (
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={() => setPreviewModalMedia(selectedMedia)}
+                title="معاينة الصورة بالحجم الكامل"
+              >
+                <Icon name="eye" size={15} /> معاينة
+              </button>
+            )}
             <button
               type="button"
               className="button button-primary"
@@ -2416,6 +2462,57 @@ function MediaPickerModal({ brands = [], activeBrandId, onClose, onSelect, notif
             </button>
           </div>
         </footer>
+
+        {previewModalMedia && (
+          <Modal
+            title={`معاينة: ${previewModalMedia.filename}`}
+            subtitle={`${formatBytes(previewModalMedia.bytes)} ${previewModalMedia.width ? `· ${previewModalMedia.width}×${previewModalMedia.height}px` : ''}`}
+            onClose={() => setPreviewModalMedia(null)}
+            wide
+          >
+            <div className="gallery-full-preview-body">
+              <img
+                src={optimizeCloudinaryUrl(previewModalMedia.url, { width: 1400 })}
+                alt={previewModalMedia.filename}
+                className="gallery-full-preview-img"
+              />
+              <div className="gallery-full-preview-actions">
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => {
+                    onSelect(previewModalMedia.url);
+                    setPreviewModalMedia(null);
+                    onClose();
+                  }}
+                >
+                  <Icon name="check" size={16} /> استخدام هذه الصورة
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(previewModalMedia.url);
+                      notify('تم نسخ رابط الصورة إلى الحافظة.');
+                    } catch {
+                      notify('تعذر نسخ الرابط.', 'warning');
+                    }
+                  }}
+                >
+                  <Icon name="copy" size={16} /> نسخ رابط الصورة
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={() => setPreviewModalMedia(null)}
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     </div>
   );
@@ -2480,7 +2577,7 @@ function ProductEditor({ brand, brands = [], product, title, onClose, onSaved, n
               {draft.imageUrl ? (
                 <div className="product-image-active-box">
                   <div className="product-image-preview-wrap">
-                    <img src={draft.imageUrl} alt="صورة المنتج" className="product-image-preview-img" />
+                    <img src={optimizeCloudinaryUrl(draft.imageUrl, { width: 600 })} alt="صورة المنتج" className="product-image-preview-img" />
                     {uploading && <div className="product-image-uploading-overlay">جارٍ الرفع…</div>}
                   </div>
                   <div className="product-image-active-actions">
@@ -2615,8 +2712,66 @@ function ProductEditor({ brand, brands = [], product, title, onClose, onSaved, n
   );
 }
 
+function CreateFolderModal({ onClose, onCreated, notify }) {
+  const [folderName, setFolderName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = folderName.trim();
+    if (!trimmed) {
+      notify('يرجى إدخال اسم المجلد.', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await request('/api/media/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      notify(res.message || `تم إنشاء المجلد «${trimmed}» بنجاح.`);
+      onCreated(trimmed, res.folders);
+      onClose();
+    } catch (err) {
+      notify(err.message || 'فشل إنشاء المجلد.', 'warning');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="إنشاء مجلد جديد"
+      subtitle="أنشئ مجلداً مخصصاً لتنظيم صور الكتالوج (خلفيات، عروض، ملحقات وغيرها)"
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Field label="اسم المجلد">
+          <input
+            type="text"
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            placeholder="مثال: خلفيات، صور العروض، إكسسوارات…"
+            autoFocus
+            required
+          />
+        </Field>
+        <div className="modal-actions">
+          <button type="button" className="button button-ghost" onClick={onClose} disabled={saving}>
+            إلغاء
+          </button>
+          <button type="submit" className="button button-primary" disabled={saving || !folderName.trim()}>
+            {saving ? 'جاري الإنشاء…' : 'إنشاء المجلد'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
-  const [selectedFolder, setSelectedFolder] = useState('folders'); // 'folders' | 'all' | 'general' | brandId
+  const [selectedFolder, setSelectedFolder] = useState('folders'); // 'folders' | 'all' | 'general' | brandId | customFolderName
   const [mediaList, setMediaList] = useState([]);
   const [foldersData, setFoldersData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2625,6 +2780,7 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [uploadStatusText, setUploadStatusText] = useState('');
   const [previewMedia, setPreviewMedia] = useState(null);
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const fileInputRef = useRef(null);
 
   const loadMedia = useCallback(async () => {
@@ -2636,7 +2792,8 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
           params.set('folder', 'general');
         } else {
           params.set('folder', selectedFolder);
-          params.set('brandId', selectedFolder);
+          const isBrand = brands.some((b) => b.id === selectedFolder);
+          if (isBrand) params.set('brandId', selectedFolder);
         }
       }
       if (search.trim()) {
@@ -2650,7 +2807,7 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedFolder, search, notify]);
+  }, [selectedFolder, search, notify, brands]);
 
   useEffect(() => {
     loadMedia();
@@ -2680,7 +2837,8 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
         const formData = new FormData();
         formData.append('files', optimized);
         formData.append('folder', targetFolder);
-        if (targetFolder !== 'general') formData.append('brandId', targetFolder);
+        const isBrand = brands.some((b) => b.id === targetFolder);
+        if (isBrand) formData.append('brandId', targetFolder);
         await request('/api/media', { method: 'POST', body: formData });
         completed++;
         setUploadProgress(Math.round((completed / total) * 100));
@@ -2716,6 +2874,27 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
     });
   };
 
+  const handleDeleteFolder = (cf) => {
+    setConfirmModal({
+      title: 'حذف المجلد المخصص',
+      message: `هل أنت متأكد من حذف مجلد «${cf.name}»؟ سيتم نقل جميع صوره تلقائياً إلى المجلد العام ولن تفقد أي صورة.`,
+      confirmText: 'حذف المجلد',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await request(`/api/media/folders?id=${encodeURIComponent(cf.id)}`, { method: 'DELETE' });
+          notify(res.message || 'تم حذف المجلد ونقل صوره إلى المجلد العام.');
+          setFoldersData(res.folders || null);
+          if (selectedFolder === cf.name || selectedFolder === cf.id) {
+            setSelectedFolder('folders');
+          }
+        } catch (err) {
+          notify(err.message, 'warning');
+        }
+      },
+    });
+  };
+
   const copyUrl = async (url) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -2727,13 +2906,14 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
 
   const isFoldersView = selectedFolder === 'folders';
   const activeBrandObj = brands.find((b) => b.id === selectedFolder);
+  const customFolderObj = foldersData?.customFolders?.find((cf) => cf.name === selectedFolder || cf.id === selectedFolder);
   const currentFolderName = isFoldersView
     ? 'كل المجلدات'
     : selectedFolder === 'all'
     ? 'جميع الصور'
     : selectedFolder === 'general'
     ? 'مجلد عام'
-    : activeBrandObj?.nameAr || 'المجلد';
+    : activeBrandObj?.nameAr || customFolderObj?.name || selectedFolder;
 
   return (
     <section className="page-shell gallery-page">
@@ -2766,6 +2946,15 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
               />
             </label>
           )}
+          <button
+            type="button"
+            className="button button-ghost"
+            onClick={() => setShowNewFolderModal(true)}
+            title="إنشاء مجلد مخصص جديد"
+          >
+            <Icon name="folder" size={16} />
+            <span>+ مجلد جديد</span>
+          </button>
           <button
             type="button"
             className="button button-primary"
@@ -2802,7 +2991,7 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
         <div className="gallery-folders-section">
           <div className="gallery-section-title">
             <div>
-              <h2>مجلدات البراندات</h2>
+              <h2>مجلدات البراندات والعام</h2>
               <p>يتم إنشاء مجلد تلقائياً لكل براند في النظام. انقر على أي مجلد لفتحه واستعراض صوره أو رفع صور جديدة داخله.</p>
             </div>
             <button
@@ -2840,7 +3029,7 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
 
             {brands.map((b) => {
               const brandStat = foldersData?.brandFolders?.find((bf) => bf.id === b.id);
-              const count = brandStat?.count || 0;
+              const count = brandStat?.count ?? brandStat?.imageCount ?? 0;
               const totalBytes = brandStat?.totalBytes || 0;
 
               return (
@@ -2875,6 +3064,76 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
               );
             })}
           </div>
+
+          {/* Custom Folders Section */}
+          <div className="gallery-section-title" style={{ marginTop: '24px' }}>
+            <div>
+              <h2>المجلدات المخصصة</h2>
+              <p>مجلدات يدوية لتنظيم الصور بحرية (خلفيات، صور العروض، إكسسوارات وغيرها).</p>
+            </div>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => setShowNewFolderModal(true)}
+            >
+              <Icon name="plus" size={15} /> + إنشاء مجلد جديد
+            </button>
+          </div>
+
+          <div className="gallery-folders-grid">
+            {foldersData?.customFolders && foldersData.customFolders.map((cf) => (
+              <article
+                key={cf.id}
+                className="folder-card folder-card--custom"
+                onClick={() => setSelectedFolder(cf.name)}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="folder-card-icon-wrap folder-card-icon-custom">
+                  <Icon name="folder" size={32} />
+                </div>
+                <div className="folder-card-body">
+                  <h3>{cf.name}</h3>
+                  <p>مجلد مخصص</p>
+                </div>
+                <div className="folder-card-meta">
+                  <span className="folder-count-pill">{cf.count || 0} صورة</span>
+                  {cf.totalBytes > 0 && <small className="folder-size-text">{formatBytes(cf.totalBytes)}</small>}
+                  <div className="folder-card-actions">
+                    <span className="folder-arrow-link">
+                      فتح <Icon name="arrow" size={14} />
+                    </span>
+                    <button
+                      type="button"
+                      className="folder-card-delete-btn"
+                      title="حذف هذا المجلد"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFolder(cf);
+                      }}
+                    >
+                      <Icon name="trash" size={14} />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+
+            <article
+              className="folder-card folder-card--add-new"
+              onClick={() => setShowNewFolderModal(true)}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="folder-card-icon-wrap">
+                <Icon name="plus" size={30} />
+              </div>
+              <div className="folder-card-body">
+                <h3>+ إنشاء مجلد جديد</h3>
+                <p>أضف مجلداً مخصصاً لتنظيم الصور حسب رغبتك</p>
+              </div>
+            </article>
+          </div>
         </div>
       )}
 
@@ -2896,7 +3155,7 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
               عام ({foldersData?.generalCount || 0})
             </button>
             {brands.map((b) => {
-              const count = foldersData?.brandFolders?.find((bf) => bf.id === b.id)?.count || 0;
+              const count = foldersData?.brandFolders?.find((bf) => bf.id === b.id)?.count ?? foldersData?.brandFolders?.find((bf) => bf.id === b.id)?.imageCount ?? 0;
               return (
                 <button
                   key={b.id}
@@ -2908,6 +3167,24 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
                 </button>
               );
             })}
+            {foldersData?.customFolders && foldersData.customFolders.map((cf) => (
+              <button
+                key={cf.id}
+                type="button"
+                className={['gallery-pill', selectedFolder === cf.name && 'is-active'].filter(Boolean).join(' ')}
+                onClick={() => setSelectedFolder(cf.name)}
+              >
+                <Icon name="folder" size={13} /> {cf.name} ({cf.count || 0})
+              </button>
+            ))}
+            <button
+              type="button"
+              className="gallery-pill gallery-pill--add"
+              onClick={() => setShowNewFolderModal(true)}
+              title="إنشاء مجلد جديد"
+            >
+              <Icon name="plus" size={13} /> مجلد جديد
+            </button>
           </div>
 
           <div
@@ -2927,16 +3204,8 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
           </div>
 
           {loading ? (
-            <div className="gallery-media-grid">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="media-item-card gallery-item-skeleton">
-                  <div className="card-image-skeleton" style={{ width: '100%', height: '160px' }} />
-                  <div style={{ padding: '10px' }}>
-                    <div className="skeleton-line" style={{ width: '70%', height: '12px', marginBottom: '6px' }} />
-                    <div className="skeleton-line" style={{ width: '40%', height: '10px' }} />
-                  </div>
-                </div>
-              ))}
+            <div className="gallery-clean-loader">
+              <span className="cf-image-spinner" style={{ width: 32, height: 32 }} />
             </div>
           ) : mediaList.length === 0 ? (
             <div className="gallery-empty-state">
@@ -2967,7 +3236,6 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
                     </div>
                   </div>
 
-
                   <div className="media-item-details">
                     <div className="media-item-title-row">
                       <strong className="media-filename" title={item.filename}>{item.filename}</strong>
@@ -2981,6 +3249,14 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
                   </div>
 
                   <div className="media-item-actions">
+                    <button
+                      type="button"
+                      className="btn-media-action"
+                      onClick={() => setPreviewMedia(item)}
+                      title="معاينة الصورة بالحجم الكامل"
+                    >
+                      <Icon name="eye" size={14} /> معاينة
+                    </button>
                     <button
                       type="button"
                       className="btn-media-action"
@@ -3013,7 +3289,11 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
           wide
         >
           <div className="gallery-full-preview-body">
-            <img src={previewMedia.url} alt={previewMedia.filename} className="gallery-full-preview-img" />
+            <img
+              src={optimizeCloudinaryUrl(previewMedia.url, { width: 1400 })}
+              alt={previewMedia.filename}
+              className="gallery-full-preview-img"
+            />
             <div className="gallery-full-preview-actions">
               <button
                 type="button"
@@ -3036,6 +3316,17 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {showNewFolderModal && (
+        <CreateFolderModal
+          onClose={() => setShowNewFolderModal(false)}
+          onCreated={(newFolder, updatedFolders) => {
+            if (updatedFolders) setFoldersData(updatedFolders);
+            setSelectedFolder(newFolder);
+          }}
+          notify={notify}
+        />
       )}
     </section>
   );

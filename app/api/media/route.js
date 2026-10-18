@@ -32,9 +32,27 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const contentType = request.headers.get('content-type') || '';
+
+    // Handle JSON actions (e.g. create_folder)
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      if (body.action === 'create_folder' || body.name) {
+        const { createCustomFolder } = await import('../../../lib/database');
+        const name = String(body.name || '').trim();
+        if (!name) {
+          return NextResponse.json({ error: 'اسم المجلد مطلوب.' }, { status: 400 });
+        }
+        const folder = await createCustomFolder(name);
+        const folders = await getMediaFoldersWithCounts();
+        return NextResponse.json({ success: true, folder, folders }, { status: 201 });
+      }
+      return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
+    }
+
     const formData = await request.formData();
     const folder = String(formData.get('folder') || 'general');
-    const brandId = formData.get('brandId') ? String(formData.get('brandId')) : (folder !== 'general' ? folder : null);
+    const brandId = formData.get('brandId') ? String(formData.get('brandId')) : null;
 
     // Support single file or multiple files
     let files = formData.getAll('files');

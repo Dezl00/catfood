@@ -4432,6 +4432,52 @@ tr:last-child td {
   font-weight: 600;
 }
 
+.folder-card-icon-custom {
+  background: #f0fdf4 !important;
+  color: #16a34a !important;
+}
+
+.folder-card--add-new {
+  border: 1.5px dashed #d4d4d8 !important;
+  background: #fafafa !important;
+  cursor: pointer;
+}
+
+.folder-card--add-new:hover {
+  border-color: #18181b !important;
+  background: #f4f4f5 !important;
+}
+
+.gallery-pill--add {
+  border: 1px dashed #a1a1aa !important;
+  background: transparent !important;
+  color: #52525b !important;
+}
+
+.gallery-pill--add:hover {
+  border-color: #18181b !important;
+  color: #18181b !important;
+  background: #f4f4f5 !important;
+}
+
+.folder-card-delete-btn {
+  background: none;
+  border: none;
+  color: #a1a1aa;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.folder-card-delete-btn:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
 /* Contents View & Pills */
 .gallery-contents-section {
   display: flex;
@@ -4529,7 +4575,8 @@ tr:last-child td {
   margin: 0 0 8px 0;
 }
 
-.gallery-loading-state {
+.gallery-loading-state,
+.gallery-clean-loader {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4537,6 +4584,7 @@ tr:last-child td {
   padding: 60px 20px;
   font-size: 14px;
   color: #71717a;
+  width: 100%;
 }
 
 /* Media Item Grid & Card */
@@ -4646,7 +4694,7 @@ tr:last-child td {
 
 .media-item-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid #f4f4f5;
   background: #ffffff;
 }
@@ -4880,6 +4928,33 @@ tr:last-child td {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 3;
+}
+
+.media-thumb-preview-action {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #18181b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: all 0.15s ease;
+  z-index: 2;
+}
+
+.media-thumb-preview-action:hover {
+  background: #18181b;
+  color: #ffffff;
+  opacity: 1;
+  transform: scale(1.08);
 }
 
 .media-thumb-caption {
