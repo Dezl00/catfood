@@ -27,7 +27,12 @@ export async function POST(request) {
     const nameAr = String(formData.get('nameAr') || '').trim();
     if (!nameAr) return NextResponse.json({ error: 'اسم البراند بالعربي مطلوب.' }, { status: 400 });
     const logo = formData.get('logo');
-    const logoUrl = logo instanceof File && logo.size ? await uploadImage(logo, 'brands') : '';
+    let logoUrl = '';
+    if (logo instanceof File && logo.size) {
+      logoUrl = await uploadImage(logo, 'brands');
+    } else if (formData.has('logoUrl')) {
+      logoUrl = String(formData.get('logoUrl') || '');
+    }
     const brand = await createBrand({
       id: crypto.randomUUID(),
       nameAr,

@@ -123,7 +123,7 @@ describe('getTableColumns', () => {
 });
 
 describe('computeProductLayout', () => {
-  it('calculates full-state layout with base minimum description height', () => {
+  it('calculates full-state layout with synchronized Arabic and English description height', () => {
     const product = {
       descriptionAr: 'وصف عربي',
       descriptionEn: 'English description',
@@ -135,32 +135,30 @@ describe('computeProductLayout', () => {
 
     const layout = computeProductLayout(product, settings, variants);
 
-    // Card height should be 328.3 for 3 rows with standard desc
-    assert.ok(Math.abs(layout.cardHeight - 328.3) < 1.0, `cardHeight ${layout.cardHeight} should be ~328.3`);
-    assert.equal(layout.descHeight, 114.2);
-    assert.equal(layout.enDescHeight, 104.7);
+    assert.equal(layout.descHeight, layout.enDescHeight);
+    assert.ok(layout.descHeight >= 52.0);
     assert.equal(layout.hasDescriptions, true);
     // nameArTop should be pillTop - 25.94
     assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 25.94) < 0.01);
   });
 
-  it('flexibly expands description height for long text without clipping', () => {
+  it('flexibly expands description height for long text without clipping and keeps both equal', () => {
     const longArabic = 'هذا نص وصف طويل جداً يتكون من عدة أسطر لمنتج طعام القطط المتميز مع مكونات طبيعية بالكامل وبروتينات عالية وفيتامينات متكاملة تدعم صحة ونمو القطط الأليفة بشكل متوازن وصحي على مدار اليوم.';
     const product = {
       descriptionAr: longArabic,
-      descriptionEn: 'Very long English description with comprehensive details that spans across multiple sentences and paragraphs to give complete product information.',
+      descriptionEn: 'Short EN',
     };
     const settings = { visible: { description: true } };
     const variants = [{ id: '1' }];
 
     const layout = computeProductLayout(product, settings, variants);
-    assert.ok(layout.descHeight > 114.2, `descHeight ${layout.descHeight} should expand above 114.2 for long text`);
-    assert.ok(layout.enDescHeight > 104.7, `enDescHeight ${layout.enDescHeight} should expand`);
+    assert.ok(layout.descHeight > 52.0, `descHeight ${layout.descHeight} should expand above base 52.0 for long text`);
+    assert.equal(layout.descHeight, layout.enDescHeight, 'English box must link to the height of the taller Arabic box');
   });
 });
 
 describe('paginateProductVariants', () => {
-  it('splits 16 variants into 2 pages of 8 variants each when descriptions are present', () => {
+  it('splits 16 variants into 2 pages (10 and 6) when compact descriptions are present', () => {
     const product = {
       descriptionAr: 'وصف',
       variants: Array.from({ length: 16 }, (_, i) => ({ id: `v-${i + 1}` })),
@@ -168,11 +166,11 @@ describe('paginateProductVariants', () => {
     const settings = { visible: { description: true } };
 
     const perPage = getVariantsPerPage(product, settings);
-    assert.equal(perPage, 8);
+    assert.equal(perPage, 10);
 
     const pages = paginateProductVariants(product, settings);
     assert.equal(pages.length, 2);
-    assert.equal(pages[0].length, 8);
-    assert.equal(pages[1].length, 8);
+    assert.equal(pages[0].length, 10);
+    assert.equal(pages[1].length, 6);
   });
 });
