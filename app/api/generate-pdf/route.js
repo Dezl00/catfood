@@ -71,6 +71,37 @@ async function getBrowser() {
   return globalBrowser;
 }
 
+function optimizeCloudinaryUrl(url, { width = 640, quality = 'auto:eco', format = 'jpg', background = 'white' } = {}) {
+  if (!url || typeof url !== 'string') return url || '';
+  if (!url.includes('cloudinary.com') || !url.includes('/upload/')) return url;
+
+  const [prefix, rest] = url.split('/upload/');
+  if (!rest) return url;
+
+  const transformParts = [];
+  if (background) transformParts.push(`b_${background}`);
+  if (format) transformParts.push(`f_${format}`);
+  if (quality) transformParts.push(`q_${quality}`);
+  if (width) transformParts.push(`w_${width},c_limit`);
+  const transformStr = transformParts.join(',');
+
+  let cleanRest = rest;
+  const versionMatch = rest.match(/(^|\/)(v\d+\/.*)$/);
+  if (versionMatch) {
+    cleanRest = versionMatch[2];
+  } else {
+    const segments = rest.split('/');
+    while (segments.length > 1 && (segments[0].includes('_') || segments[0].includes(':'))) {
+      segments.shift();
+    }
+    cleanRest = segments.join('/');
+  }
+
+  return transformStr
+    ? `${prefix}/upload/${transformStr}/${cleanRest}`
+    : `${prefix}/upload/${cleanRest}`;
+}
+
 export async function POST(request) {
   let page = null;
   
@@ -83,10 +114,13 @@ export async function POST(request) {
       return NextResponse.json({ error: 'حجم الكتالوج كبير جداً' }, { status: 413 });
     }
     
-    // Ensure no lazy loading in print HTML
+    // Ensure eager loading and compress all catalog images to lightweight JPEG for small PDF file sizes
     const cleanHtml = html
       .replace(/\sloading=["']lazy["']/gi, ' loading="eager"')
-      .replace(/\sdecoding=["']async["']/gi, ' decoding="sync"');
+      .replace(/\sdecoding=["']async["']/gi, ' decoding="sync"')
+      .replace(/(<img\s+[^>]*src=["'])(https?:\/\/[^"']*cloudinary\.com\/[^"']*\/upload\/[^"']*)(["'])/gi, (match, before, url, after) => {
+        return before + optimizeCloudinaryUrl(url, { width: 640, quality: 'auto:eco', format: 'jpg', background: 'white' }) + after;
+      });
 
     const origin = new URL(request.url).origin;
     const browser = await getBrowser();

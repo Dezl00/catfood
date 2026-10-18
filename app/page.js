@@ -141,19 +141,35 @@ async function optimizeImageForUpload(file) {
   });
 }
 
-function optimizeCloudinaryUrl(url, { width = 1200, quality = 'auto' } = {}) {
+function optimizeCloudinaryUrl(url, { width = 640, quality = 'auto:eco', format = 'jpg', background = 'white' } = {}) {
   if (!url || typeof url !== 'string') return url || '';
-  if (url.includes('cloudinary.com') && url.includes('/upload/')) {
-    if (url.includes('/upload/f_auto,q_auto')) {
-      if (width && !url.includes('w_')) {
-        return url.replace('/upload/f_auto,q_auto', `/upload/f_auto,q_${quality},w_${width},c_limit`);
-      }
-      return url;
+  if (!url.includes('cloudinary.com') || !url.includes('/upload/')) return url;
+
+  const [prefix, rest] = url.split('/upload/');
+  if (!rest) return url;
+
+  const transformParts = [];
+  if (background) transformParts.push(`b_${background}`);
+  if (format) transformParts.push(`f_${format}`);
+  if (quality) transformParts.push(`q_${quality}`);
+  if (width) transformParts.push(`w_${width},c_limit`);
+  const transformStr = transformParts.join(',');
+
+  let cleanRest = rest;
+  const versionMatch = rest.match(/(^|\/)(v\d+\/.*)$/);
+  if (versionMatch) {
+    cleanRest = versionMatch[2];
+  } else {
+    const segments = rest.split('/');
+    while (segments.length > 1 && (segments[0].includes('_') || segments[0].includes(':'))) {
+      segments.shift();
     }
-    const transform = `f_auto,q_${quality}${width ? `,w_${width},c_limit` : ''}/`;
-    return url.replace('/upload/', `/upload/${transform}`);
+    cleanRest = segments.join('/');
   }
-  return url;
+
+  return transformStr
+    ? `${prefix}/upload/${transformStr}/${cleanRest}`
+    : `${prefix}/upload/${cleanRest}`;
 }
 
 function UploadZone({ preview, onFile, label, note, compact = false }) {
@@ -214,7 +230,13 @@ function CatalogWelcomeSheet({ brand }) {
 
       <div className="cf-logo-card">
         {logoUrl ? (
-          <img src={logoUrl} alt={brandAr} className="cf-brand-logo-img" />
+          <img
+            src={optimizeCloudinaryUrl(logoUrl, { width: 450, quality: 'auto:eco', format: 'jpg', background: 'white' })}
+            alt={brandAr}
+            className="cf-brand-logo-img"
+            loading="eager"
+            decoding="sync"
+          />
         ) : (
           <div className="cf-logo-fallback">{brandAr}</div>
         )}
@@ -263,7 +285,7 @@ function ProductSheet({ brand, product, variants: customVariants }) {
       <div className="cf-image-card" style={{ height: `${layout.cardHeight}pt` }}>
         {product.imageUrl ? (
           <img
-            src={optimizeCloudinaryUrl(product.imageUrl, { width: 1200 })}
+            src={optimizeCloudinaryUrl(product.imageUrl, { width: 640, quality: 'auto:eco', format: 'jpg', background: 'white' })}
             alt={product.nameAr || product.nameEn || ''}
             className="cf-product-image-img"
             style={{ maxHeight: `${layout.cardHeight - 52}pt` }}
