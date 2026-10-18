@@ -74,8 +74,8 @@ function Icon({ name, size = 20 }) {
     grip: <><circle cx="9" cy="5" r="1.5" fill="currentColor"/><circle cx="15" cy="5" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="19" r="1.5" fill="currentColor"/><circle cx="15" cy="19" r="1.5" fill="currentColor"/></>,
     arrowUp: <path d="m18 15-6-6-6 6" />,
     arrowDown: <path d="m6 9 6 6 6-6" />,
-    columns1: <rect x="4" y="4" width="16" height="16" rx="2" />,
-    columns2: <><rect x="3" y="4" width="8" height="16" rx="1.5" /><rect x="13" y="4" width="8" height="16" rx="1.5" /></>,
+    columns1: <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" stroke="none" />,
+    columns2: <><rect x="3.5" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /><rect x="13" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /></>,
   };
   return <svg {...props}>{shapes[name] || shapes.grid}</svg>;
 }
@@ -492,26 +492,24 @@ function ProductCard({
           <span className="page-order-badge">صفحة {index + 1}</span>
         </div>
         {!isOverlay && (
-          <div className="card-quick-order">
+          <div className="card-top-actions">
             <button
               type="button"
-              className="move-button"
-              disabled={index === 0}
-              onClick={() => onMoveUp && onMoveUp(index)}
-              title="تقديم الصفحة للأمام"
-              aria-label="تقديم الصفحة"
+              className="card-top-btn"
+              onClick={onPreview}
+              title="معاينة شكل الصفحة A4"
+              aria-label="معاينة الصفحة"
             >
-              <Icon name="arrowUp" size={13} />
+              <Icon name="eye" size={14} />
             </button>
             <button
               type="button"
-              className="move-button"
-              disabled={index === total - 1}
-              onClick={() => onMoveDown && onMoveDown(index)}
-              title="تأخير الصفحة للخلف"
-              aria-label="تأخير الصفحة"
+              className="card-top-btn"
+              onClick={onDuplicate}
+              title="تكرار الصفحة"
+              aria-label="تكرار الصفحة"
             >
-              <Icon name="arrowDown" size={13} />
+              <Icon name="copy" size={14} />
             </button>
           </div>
         )}
@@ -546,17 +544,24 @@ function ProductCard({
       </div>
 
       <div className="product-card-footer">
-        <button type="button" className="btn-card-action btn-card-primary" onClick={onPreview} title="معاينة شكل الصفحة A4" aria-label="معاينة الصفحة">
-          <Icon name="eye" size={13} /> <span className="btn-card-text">معاينة</span>
+        <button
+          type="button"
+          className="btn-card-action btn-card-edit"
+          onClick={onEdit}
+          title="تعديل صفحة المنتج"
+          aria-label="تعديل"
+        >
+          <span className="btn-card-text">تعديل</span>
         </button>
-        <button type="button" className="btn-card-action btn-card-secondary" onClick={onEdit} title="تعديل صفحة المنتج" aria-label="تعديل">
-          <Icon name="edit" size={13} /> <span className="btn-card-text">تعديل</span>
-        </button>
-        <button type="button" className="btn-card-action btn-card-ghost" onClick={onDuplicate} title="تكرار الصفحة" aria-label="تكرار">
-          <Icon name="copy" size={13} /> <span className="btn-card-text">تكرار</span>
-        </button>
-        <button type="button" className="btn-card-action btn-card-danger" onClick={onDelete} title="حذف الصفحة" aria-label="حذف">
-          <Icon name="trash" size={13} /> <span className="btn-card-text">حذف</span>
+        <button
+          type="button"
+          className="btn-card-action btn-card-danger"
+          onClick={onDelete}
+          title="حذف الصفحة"
+          aria-label="حذف"
+        >
+          <Icon name="trash" size={13} />
+          <span className="btn-card-text">حذف</span>
         </button>
       </div>
     </article>
@@ -564,6 +569,17 @@ function ProductCard({
 }
 
 function Modal({ title, subtitle, children, onClose, wide = false }) {
+  useEffect(() => {
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, []);
+
   return (
     <div
       className="modal-backdrop"
@@ -665,6 +681,18 @@ function PreviewToolbar({ zoom, setZoom, autoScale }) {
 }
 
 function ConfirmModal({ config, onClose }) {
+  useEffect(() => {
+    if (!config) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [config]);
+
   if (!config) return null;
   const { title, message, confirmText = 'تأكيد الحذف', cancelText = 'إلغاء', tone = 'danger', onConfirm } = config;
 
@@ -1921,19 +1949,65 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isMobile = windowDimensions.width < 640;
-  const modalPadding = isMobile ? 24 : 72;
-  const autoScale = Math.min(1.0, Math.max(0.18, (windowDimensions.width - modalPadding) / 794));
+  const isMobile = windowDimensions.width < 820;
+  const modalAvailableWidth = isMobile
+    ? Math.max(280, windowDimensions.width - 24)
+    : Math.max(320, Math.min(940, windowDimensions.width - 48) - 36);
 
-  // Adaptive scale for single page preview so it fits cleanly in modal without awkward scrolling
-  const modalAvailableHeight = Math.max(380, windowDimensions.height * 0.88 - 180);
-  const singleFitScale = Math.min(1.0, Math.max(0.25, Math.min(
-    (Math.min(940, windowDimensions.width) - modalPadding) / 794,
-    modalAvailableHeight / 1122.5
-  )));
+  const responsiveScale = Math.min(1.0, Math.max(0.20, Number((modalAvailableWidth / 793.7).toFixed(3))));
+  const effectivePreviewScale = responsiveScale;
+  const effectiveCatalogScale = responsiveScale;
 
-  const effectivePreviewScale = typeof previewZoom === 'number' ? previewZoom : singleFitScale;
-  const effectiveCatalogScale = typeof catalogZoom === 'number' ? catalogZoom : autoScale;
+  const isAnyModalActive = Boolean(
+    brandModal ||
+    productModal ||
+    previewModal ||
+    catalogPreviewModal ||
+    confirmModal ||
+    mobileMenu
+  );
+
+  useEffect(() => {
+    if (!isAnyModalActive) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.paddingRight = '';
+    };
+  }, [isAnyModalActive]);
+
+  useEffect(() => {
+    if (!activeDragId) return;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyTouchAction = document.body.style.touchAction;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+
+    const preventScroll = (e) => {
+      e.preventDefault();
+    };
+    window.addEventListener('touchmove', preventScroll, { passive: false });
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.touchAction = prevBodyTouchAction;
+      window.removeEventListener('touchmove', preventScroll);
+    };
+  }, [activeDragId]);
 
   const activeDragItem = useMemo(() => activeBrand?.products?.find((p) => p.id === activeDragId), [activeBrand?.products, activeDragId]);
 
@@ -1985,7 +2059,7 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4200);
+    const timer = setTimeout(() => setToast(null), 2000);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -2504,8 +2578,7 @@ export default function Home() {
                         title="عرض عامود واحد (صفحة واحدة في الصف)"
                         aria-label="عامود واحد"
                       >
-                        <Icon name="columns1" size={16} />
-                        <span className="grid-toggle-label">1</span>
+                        <Icon name="columns1" size={17} />
                       </button>
                       <button
                         type="button"
@@ -2514,8 +2587,7 @@ export default function Home() {
                         title="عرض عامودين (صفحتين في الصف)"
                         aria-label="عامودين"
                       >
-                        <Icon name="columns2" size={16} />
-                        <span className="grid-toggle-label">2</span>
+                        <Icon name="columns2" size={17} />
                       </button>
                     </div>
                   </div>
@@ -2535,14 +2607,14 @@ export default function Home() {
                       disabled={!products.length}
                       title="معاينة صفحات الكتالوج بالكامل"
                     >
-                      <Icon name="eye" size={16} /> <span>معاينة الكتالوج</span>
+                      <Icon name="eye" size={16} /> <span>معاينة</span>
                     </button>
                     <button
                       type="button"
                       className="button button-ghost action-chip"
                       onClick={() => go('import')}
                     >
-                      <Icon name="upload" size={16} /> <span>استيراد Excel</span>
+                      <Icon name="upload" size={16} /> <span>استيراد</span>
                     </button>
                     <button
                       type="button"
@@ -2553,7 +2625,7 @@ export default function Home() {
                     >
                       {exportProgress !== null && <span className="export-progress-fill" style={{ width: `${exportProgress}%` }} />}
                       <Icon name="download" size={16} />
-                      <span>{exportProgress !== null ? (exportProgress >= 100 ? '100%' : `${exportProgress}%`) : 'تصدير PDF (' + products.length + ')'}</span>
+                      <span>{exportProgress !== null ? (exportProgress >= 100 ? '100%' : `${exportProgress}%`) : 'تصدير'}</span>
                     </button>
                   </div>
                 </div>
@@ -2663,7 +2735,6 @@ export default function Home() {
         onClose={() => setPreviewModal(null)}
         wide
       >
-        <PreviewToolbar zoom={previewZoom} setZoom={setPreviewZoom} autoScale={singleFitScale} />
         <div className="catalog-preview-scroll">
           {paginateProductVariants(previewModal, mergeSettings(activeBrand.settings)).map((pageVariants, pIdx, allPages) => {
             const pageNum = products.findIndex((p) => p.id === previewModal.id) + 2;
@@ -2695,7 +2766,6 @@ export default function Home() {
           onClose={() => setCatalogPreviewModal(false)}
           wide
         >
-          <PreviewToolbar zoom={catalogZoom} setZoom={setCatalogZoom} autoScale={autoScale} />
           <div className="catalog-preview-scroll">
             <div className="catalog-preview-page-wrap">
               <div className="catalog-preview-page-header">
@@ -2760,7 +2830,17 @@ export default function Home() {
       ))}
     </nav>
     {confirmModal && <ConfirmModal config={confirmModal} onClose={() => setConfirmModal(null)} />}
-    {toast && <div className={['toast', toast.tone].join(' ')} role="status"><Icon name={toast.tone === 'success' ? 'check' : 'settings'} size={18} />{toast.message}<button onClick={() => setToast(null)} aria-label="إغلاق"><Icon name="close" size={16} /></button></div>}
+    {toast && (
+      <div className="toast" role="status" aria-live="polite">
+        <span className="toast-icon">
+          <Icon name="check" size={15} />
+        </span>
+        <span className="toast-message">{toast.message}</span>
+        <button type="button" onClick={() => setToast(null)} aria-label="إغلاق">
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+    )}
   </main>;
 }
 
@@ -2811,7 +2891,7 @@ function BrandCard({ brand, selected, onOpen, onEdit, onDelete }) {
 }
 
 function EmptyState({ onNew, onImport }) {
-  return <div className="empty-state"><span><Icon name="folder" size={31} /></span><h3>لا توجد صفحات بعد</h3><p>أنشئ صفحة منتج يدويًا أو استورد ملف Excel مع معاينة وتعديل قبل الإدراج.</p><div><button className="button button-primary" onClick={onNew}><Icon name="plus" size={18} /> صفحة جديدة</button>{onImport && <button className="button button-ghost" onClick={onImport}><Icon name="upload" size={18} /> استيراد Excel</button>}</div></div>;
+  return <div className="empty-state"><span><Icon name="folder" size={31} /></span><h3>لا توجد صفحات بعد</h3><p>أنشئ صفحة منتج يدويًا أو استورد ملف Excel مع معاينة وتعديل قبل الإدراج.</p><div><button className="button button-primary" onClick={onNew}><Icon name="plus" size={18} /> صفحة جديدة</button>{onImport && <button className="button button-ghost" onClick={onImport}><Icon name="upload" size={18} /> استيراد</button>}</div></div>;
 }
 
 function NeedsBrand({ onCreate }) {
