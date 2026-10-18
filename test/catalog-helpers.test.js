@@ -158,7 +158,7 @@ describe('computeProductLayout', () => {
 });
 
 describe('paginateProductVariants', () => {
-  it('splits 16 variants into 2 pages (10 and 6) when compact descriptions are present', () => {
+  it('splits 16 variants into 2 pages (12 and 4) when compact descriptions are present', () => {
     const product = {
       descriptionAr: 'وصف',
       variants: Array.from({ length: 16 }, (_, i) => ({ id: `v-${i + 1}` })),
@@ -166,11 +166,11 @@ describe('paginateProductVariants', () => {
     const settings = { visible: { description: true } };
 
     const perPage = getVariantsPerPage(product, settings);
-    assert.equal(perPage, 10);
+    assert.equal(perPage, 12);
 
     const pages = paginateProductVariants(product, settings);
     assert.equal(pages.length, 2);
-    assert.equal(pages[0].length, 10);
-    assert.equal(pages[1].length, 6);
+    assert.equal(pages[0].length, 12);
+    assert.equal(pages[1].length, 4);
   });
 });

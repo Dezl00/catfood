@@ -5,6 +5,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -76,6 +78,7 @@ function Icon({ name, size = 20 }) {
     arrowDown: <path d="m6 9 6 6 6-6" />,
     columns1: <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" stroke="none" />,
     columns2: <><rect x="3.5" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /><rect x="13" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /></>,
+    square: <rect x="3" y="3" width="18" height="18" rx="4" />,
   };
   return <svg {...props}>{shapes[name] || shapes.grid}</svg>;
 }
@@ -163,22 +166,51 @@ function expandDescriptionBoxes(container) {
 
     const isArabic = Boolean(textAr);
     textEl.style.fontSize = isArabic ? '11pt' : '13pt';
-    textEl.style.lineHeight = isArabic ? '17pt' : '15.6pt';
+    textEl.style.lineHeight = isArabic ? '16.5pt' : '15pt';
 
-    const currentHeight = parseFloat(box.style.height) || box.clientHeight || 52.0;
-    const needed = Number((textEl.scrollHeight + 10).toFixed(1));
+    const needed = Number((textEl.scrollHeight + 5).toFixed(1));
     if (needed > maxNeeded) {
       maxNeeded = needed;
     }
   });
 
   if (maxNeeded > 0) {
-    boxes.forEach((box) => {
-      const currentHeight = parseFloat(box.style.height) || 0;
-      if (maxNeeded > currentHeight) {
+    const firstBox = boxes[0];
+    const currentHeight = parseFloat(firstBox.style.height) || 0;
+    const delta = maxNeeded - currentHeight;
+
+    if (delta > 0.5) {
+      boxes.forEach((box) => {
+        const currentTop = parseFloat(box.style.top) || 0;
         box.style.height = `${maxNeeded}pt`;
+        // Grow UPWARDS: shift top upwards by delta to anchor bottom and prevent table overlap
+        box.style.top = `${currentTop - delta}pt`;
+      });
+
+      // Reduce image card height above description to maintain balance
+      const card = container.querySelector('.cf-image-card');
+      if (card) {
+        const currentCardHeight = parseFloat(card.style.height) || 0;
+        const newCardHeight = Math.max(120.0, currentCardHeight - delta);
+        card.style.height = `${newCardHeight}pt`;
+        const img = card.querySelector('.cf-product-image-img');
+        if (img) {
+          img.style.maxHeight = `${newCardHeight - 48}pt`;
+        }
       }
-    });
+
+      // Shift name labels upwards with the card bottom
+      const nameAr = container.querySelector('.cf-name-ar');
+      if (nameAr) {
+        const currentNameArTop = parseFloat(nameAr.style.top) || 0;
+        nameAr.style.top = `${currentNameArTop - delta}pt`;
+      }
+      const pill = container.querySelector('.cf-name-pill');
+      if (pill) {
+        const currentPillTop = parseFloat(pill.style.top) || 0;
+        pill.style.top = `${currentPillTop - delta}pt`;
+      }
+    }
   }
 }
 
@@ -297,12 +329,12 @@ function ProductSheet({ brand, product, variants: customVariants }) {
       {/* Product Names */}
       {product.nameAr && (
         <div className="cf-name-ar" style={{ top: `${layout.nameArTop}pt` }}>
-          <span>{product.nameAr}</span>
+          <span>{product.nameAr.trim()}</span>
         </div>
       )}
       {product.nameEn && (
         <div className="cf-name-pill" style={{ top: `${layout.pillTop}pt` }}>
-          <span>{product.nameEn}</span>
+          <span>{product.nameEn.trim()}</span>
         </div>
       )}
 
@@ -426,6 +458,8 @@ function SortableProductCard({
   product,
   index,
   total,
+  isSelected = false,
+  onToggleSelect,
   onEdit,
   onDelete,
   onDuplicate,
@@ -458,6 +492,8 @@ function SortableProductCard({
         product={product}
         index={index}
         total={total}
+        isSelected={isSelected}
+        onToggleSelect={onToggleSelect}
         onEdit={onEdit}
         onDelete={onDelete}
         onDuplicate={onDuplicate}
@@ -475,6 +511,8 @@ function ProductCard({
   product,
   index,
   total,
+  isSelected = false,
+  onToggleSelect,
   onEdit,
   onDelete,
   onDuplicate,
@@ -485,8 +523,22 @@ function ProductCard({
   isOverlay = false,
 }) {
   return (
-    <article className={['product-card', isOverlay && 'is-drag-overlay'].filter(Boolean).join(' ')} data-id={product.id}>
+    <article className={['product-card', isOverlay && 'is-drag-overlay', isSelected && 'is-card-selected'].filter(Boolean).join(' ')} data-id={product.id}>
       <div className="product-card-topbar">
+        {!isOverlay && onToggleSelect && (
+          <button
+            type="button"
+            className={['card-select-btn', isSelected && 'is-selected'].filter(Boolean).join(' ')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect(product.id);
+            }}
+            title={isSelected ? 'إلغاء تحديد الصفحة' : 'تحديد الصفحة'}
+            aria-label="تحديد الصفحة"
+          >
+            <Icon name={isSelected ? 'check' : 'square'} size={13} />
+          </button>
+        )}
         <div className="drag-handle" title="اسحب لإعادة ترتيب موضع الصفحة في الكتالوج" {...dragHandleProps}>
           <Icon name="grip" size={14} />
           <span className="page-order-badge">صفحة {index + 1}</span>
@@ -524,9 +576,6 @@ function ProductCard({
             <span>معاينة الصفحة</span>
           </div>
         )}
-        <span className="card-preview-tag">
-          <Icon name="eye" size={12} /> معاينة A4
-        </span>
       </div>
 
       <div className="product-card-content">
@@ -569,17 +618,6 @@ function ProductCard({
 }
 
 function Modal({ title, subtitle, children, onClose, wide = false }) {
-  useEffect(() => {
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
-    };
-  }, []);
-
   return (
     <div
       className="modal-backdrop"
@@ -681,18 +719,6 @@ function PreviewToolbar({ zoom, setZoom, autoScale }) {
 }
 
 function ConfirmModal({ config, onClose }) {
-  useEffect(() => {
-    if (!config) return;
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
-    };
-  }, [config]);
-
   if (!config) return null;
   const { title, message, confirmText = 'تأكيد الحذف', cancelText = 'إلغاء', tone = 'danger', onConfirm } = config;
 
@@ -1910,15 +1936,47 @@ export default function Home() {
   const [exportProgress, setExportProgress] = useState(null);
   const [activeDragId, setActiveDragId] = useState(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const toggleSelectProduct = useCallback((id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const selectAllFiltered = useCallback(() => {
+    if (!activeBrand?.products) return;
+    const q = query.trim().toLowerCase();
+    const filtered = (q
+      ? activeBrand.products.filter(
+          (p) =>
+            (p.nameAr || '').toLowerCase().includes(q) ||
+            (p.nameEn || '').toLowerCase().includes(q) ||
+            (p.barcode || '').toLowerCase().includes(q)
+        )
+      : activeBrand.products
+    ).map((p) => p.id);
+    setSelectedIds(new Set(filtered));
+  }, [activeBrand?.products, query]);
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
   const [savingOrder, setSavingOrder] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null);
   const [previewZoom, setPreviewZoom] = useState('fit');
@@ -1968,46 +2026,27 @@ export default function Home() {
   );
 
   useEffect(() => {
-    if (!isAnyModalActive) return;
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    if (isAnyModalActive) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      document.body.style.touchAction = '';
+      document.body.style.paddingRight = '';
     }
 
     return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      document.body.style.touchAction = '';
       document.body.style.paddingRight = '';
     };
   }, [isAnyModalActive]);
 
-  useEffect(() => {
-    if (!activeDragId) return;
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    const prevBodyTouchAction = document.body.style.touchAction;
-
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
-
-    const preventScroll = (e) => {
-      e.preventDefault();
-    };
-    window.addEventListener('touchmove', preventScroll, { passive: false });
-
-    return () => {
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.body.style.touchAction = prevBodyTouchAction;
-      window.removeEventListener('touchmove', preventScroll);
-    };
-  }, [activeDragId]);
 
   const activeDragItem = useMemo(() => activeBrand?.products?.find((p) => p.id === activeDragId), [activeBrand?.products, activeDragId]);
 
@@ -2029,6 +2068,7 @@ export default function Home() {
   const loadBrand = useCallback(async (id) => {
     const result = await request('/api/brands/' + id);
     setActiveBrand(result.brand);
+    setSelectedIds(new Set());
     try {
       localStorage.setItem(CACHE_ACTIVE_KEY, JSON.stringify(result.brand));
     } catch {}
@@ -2066,6 +2106,7 @@ export default function Home() {
   const go = (next) => { setView(next); setMobileMenu(false); };
   const chooseBrand = async (brand) => {
     try {
+      setSelectedIds(new Set());
       await loadBrand(brand.id);
       go('catalog');
     } catch (error) { notify(error.message, 'warning'); }
@@ -2132,6 +2173,31 @@ export default function Home() {
       },
     });
   };
+  const handleBulkDelete = () => {
+    if (!selectedIds.size || !activeBrand) return;
+    const count = selectedIds.size;
+    const idsToDelete = Array.from(selectedIds);
+    setConfirmModal({
+      title: `حذف ${count} صفحة محددة`,
+      message: `هل أنت متأكد من حذف ${count} صفحة من الكتالوج نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`,
+      confirmText: `حذف ${count} صفحة`,
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await request('/api/brands/' + activeBrand.id + '/products', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productIds: idsToDelete }),
+          });
+          notify(`تم حذف ${count} صفحة بنجاح.`);
+          setSelectedIds(new Set());
+          await refresh(activeBrand.id);
+        } catch (error) {
+          notify(error.message, 'warning');
+        }
+      },
+    });
+  };
   const reorderProductsByIds = async (orderedIds) => {
     if (!activeBrand?.products) return;
     const currentList = [...activeBrand.products];
@@ -2167,6 +2233,38 @@ export default function Home() {
     const { active, over } = event;
     if (!over || active.id === over.id || !activeBrand?.products) return;
 
+    if (selectedIds.has(active.id) && selectedIds.size > 1) {
+      if (selectedIds.has(over.id)) return;
+      const currentProducts = activeBrand.products;
+      const selectedList = currentProducts.filter((p) => selectedIds.has(p.id));
+      const unselectedList = currentProducts.filter((p) => !selectedIds.has(p.id));
+      const targetUnselectedIdx = unselectedList.findIndex((p) => p.id === over.id);
+      if (targetUnselectedIdx === -1) return;
+
+      const currentActiveIdx = currentProducts.findIndex((p) => p.id === active.id);
+      const currentOverIdx = currentProducts.findIndex((p) => p.id === over.id);
+
+      let insertIdx = targetUnselectedIdx;
+      if (currentOverIdx > currentActiveIdx) {
+        insertIdx = targetUnselectedIdx + 1;
+      }
+
+      const newProducts = [
+        ...unselectedList.slice(0, insertIdx),
+        ...selectedList,
+        ...unselectedList.slice(insertIdx),
+      ];
+
+      const hasChanged = newProducts.some((p, i) => p.id !== currentProducts[i]?.id);
+      if (hasChanged) {
+        setActiveBrand((curr) => ({
+          ...curr,
+          products: newProducts,
+        }));
+      }
+      return;
+    }
+
     const oldIndex = activeBrand.products.findIndex((p) => p.id === active.id);
     const newIndex = activeBrand.products.findIndex((p) => p.id === over.id);
     if (oldIndex !== -1 && newIndex !== -1) {
@@ -2176,6 +2274,7 @@ export default function Home() {
       }));
     }
   };
+
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
@@ -2593,6 +2692,17 @@ export default function Home() {
                   </div>
 
                   <div className="catalog-action-chips">
+                    {products.length > 0 && (
+                      <button
+                        type="button"
+                        className={['button', 'button-ghost', 'action-chip', selectedIds.size > 0 && 'is-active'].filter(Boolean).join(' ')}
+                        onClick={selectedIds.size === filteredProducts.length ? clearSelection : selectAllFiltered}
+                        title={selectedIds.size === filteredProducts.length ? 'إلغاء تحديد كل الصفحات' : 'تحديد كل الصفحات'}
+                      >
+                        <Icon name={selectedIds.size === filteredProducts.length ? 'close' : 'check'} size={15} />
+                        <span>{selectedIds.size === filteredProducts.length ? 'إلغاء التحديد' : 'تحديد الكل'}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="button button-primary action-chip"
@@ -2664,6 +2774,8 @@ export default function Home() {
                               product={product}
                               index={actualIndex >= 0 ? actualIndex : idx}
                               total={products.length}
+                              isSelected={selectedIds.has(product.id)}
+                              onToggleSelect={toggleSelectProduct}
                               onMoveUp={() => moveProduct(actualIndex, actualIndex - 1)}
                               onMoveDown={() => moveProduct(actualIndex, actualIndex + 1)}
                               onPreview={() => setPreviewModal(product)}
@@ -2677,18 +2789,64 @@ export default function Home() {
                     </SortableContext>
                     <DragOverlay adjustScale={false}>
                       {activeDragItem ? (
-                        <div className="is-drag-overlay" style={{ width: '100%' }}>
+                        <div className="is-drag-overlay" style={{ width: '100%', position: 'relative' }}>
+                          {selectedIds.has(activeDragItem.id) && selectedIds.size > 1 && (
+                            <div style={{
+                              position: 'absolute',
+                              top: -10,
+                              right: -10,
+                              zIndex: 99,
+                              background: '#00497A',
+                              color: '#fff',
+                              padding: '4px 10px',
+                              borderRadius: '999px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                            }}>
+                              نقل {selectedIds.size} صفحات محددة معاً
+                            </div>
+                          )}
                           <ProductCard
                             brand={activeBrand}
                             product={activeDragItem}
                             index={products.findIndex((p) => p.id === activeDragItem.id)}
                             total={products.length}
+                            isSelected={selectedIds.has(activeDragItem.id)}
                             isOverlay
                           />
                         </div>
                       ) : null}
                     </DragOverlay>
                   </DndContext>
+                  {selectedIds.size > 0 && (
+                    <aside className="bulk-actions-bar" aria-label="إجراءات التحديد الجماعي">
+                      <div className="bulk-actions-info">
+                        <span className="bulk-badge">{selectedIds.size}</span>
+                        <span>صفحة محددة</span>
+                      </div>
+                      <div className="bulk-actions-buttons">
+                        <button
+                          type="button"
+                          className="button button-danger button-sm"
+                          onClick={handleBulkDelete}
+                          title="حذف جميع الصفحات المحددة"
+                        >
+                          <Icon name="trash" size={14} />
+                          <span>حذف المحدد ({selectedIds.size})</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="button button-ghost button-sm"
+                          onClick={clearSelection}
+                          title="إلغاء التحديد"
+                        >
+                          <span>إلغاء</span>
+                        </button>
+                      </div>
+                    </aside>
+                  )}
+
                   {!filteredProducts.length && (
                     <div className="search-empty">لا توجد صفحات تطابق البحث.</div>
                   )}

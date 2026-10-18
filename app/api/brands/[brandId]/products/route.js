@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createProducts, getBrand, reorderProducts } from '../../../../../lib/database';
+import { createProducts, deleteProducts, getBrand, reorderProducts } from '../../../../../lib/database';
+import { deleteImage } from '../../../../../lib/cloudinary';
 
 export const runtime = 'nodejs';
 
@@ -41,3 +42,29 @@ export async function PUT(request, context) {
     return message(error);
   }
 }
+
+export async function DELETE(request, context) {
+  try {
+    const { brandId } = await context.params;
+    const brand = await getBrand(brandId, true);
+    if (!brand) return NextResponse.json({ error: 'البراند غير موجود.' }, { status: 404 });
+    const body = await request.json();
+    if (!Array.isArray(body.productIds) || !body.productIds.length) {
+      return NextResponse.json({ error: 'productIds array is required.' }, { status: 400 });
+    }
+
+    const idsSet = new Set(body.productIds);
+    const toDeleteProducts = (brand.products || []).filter((p) => idsSet.has(p.id));
+    for (const prod of toDeleteProducts) {
+      if (prod.imageUrl) {
+        deleteImage(prod.imageUrl).catch(() => {});
+      }
+    }
+
+    const count = await deleteProducts(body.productIds, brandId);
+    return NextResponse.json({ success: true, count });
+  } catch (error) {
+    return message(error);
+  }
+}
+
