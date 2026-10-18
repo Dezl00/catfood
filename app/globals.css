@@ -725,7 +725,26 @@ h1, h2, h3, h4, p {
 .brand-page-heading {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
+}
+
+.brand-page-heading .brand-badge--large {
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+  border-radius: 12px;
+}
+
+.brand-page-heading .brand-badge--large b {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.brand-page-heading .brand-heading-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
 }
 
 .brand-page-heading h2 {
@@ -733,25 +752,62 @@ h1, h2, h3, h4, p {
   font-size: 22px;
   font-weight: 700;
   color: #09090b;
+  line-height: 1.2;
 }
 
-.brand-page-heading p {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #71717a;
+.brand-pages-black-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #09090b;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+  width: fit-content;
 }
 
-.brand-select-dropdown {
-  min-height: 32px;
-  padding: 0 10px;
-  background: #f4f4f5;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #09090b;
-  font-weight: 500;
-  outline: none;
+.topbar-brand-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar-brand-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 14px 6px 34px;
+  font-family: 'Tajawal', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
   cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.topbar-brand-select:hover,
+.topbar-brand-select:focus {
+  border-color: #00497A;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 73, 122, 0.12);
+  outline: none;
+}
+
+.topbar-brand-select-arrow {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+  color: #64748b;
+  display: flex;
+  align-items: center;
 }
 
 .search-box {
@@ -1382,7 +1438,7 @@ h1, h2, h3, h4, p {
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(4px);
-  z-index: 100;
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2941,7 +2997,7 @@ tr:last-child td {
   background: rgba(9, 9, 11, 0.78);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 9999;
+  z-index: 9000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2954,6 +3010,7 @@ tr:last-child td {
   height: 100%;
   max-width: 1680px;
   max-height: calc(100vh - 24px);
+  min-height: 0;
   background: #f8fafc;
   border-radius: 16px;
   display: flex;
@@ -3002,6 +3059,7 @@ tr:last-child td {
 
 .preview-fullscreen-workspace {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: row;
   overflow: hidden;
@@ -3160,6 +3218,7 @@ tr:last-child td {
 /* Main Preview Canvas */
 .preview-main-canvas-wrap {
   flex: 1;
+  min-height: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -3168,11 +3227,14 @@ tr:last-child td {
   background: #eef2f6;
 }
 
-.preview-main-scroll {
+.preview-main-scroll,
+.preview-main-scroll-area {
   flex: 1;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 24px 20px 32px;
   display: flex;
   flex-direction: column;
@@ -3182,26 +3244,31 @@ tr:last-child td {
   scrollbar-color: #00497A #dbeafe;
 }
 
-.preview-main-scroll::-webkit-scrollbar {
+.preview-main-scroll::-webkit-scrollbar,
+.preview-main-scroll-area::-webkit-scrollbar {
   width: 10px;
 }
 
-.preview-main-scroll::-webkit-scrollbar-track {
+.preview-main-scroll::-webkit-scrollbar-track,
+.preview-main-scroll-area::-webkit-scrollbar-track {
   background: #f1f5f9;
 }
 
-.preview-main-scroll::-webkit-scrollbar-thumb {
+.preview-main-scroll::-webkit-scrollbar-thumb,
+.preview-main-scroll-area::-webkit-scrollbar-thumb {
   background: #00497A;
   border-radius: 999px;
   border: 2px solid #f1f5f9;
 }
 
-.preview-main-scroll::-webkit-scrollbar-thumb:hover {
+.preview-main-scroll::-webkit-scrollbar-thumb:hover,
+.preview-main-scroll-area::-webkit-scrollbar-thumb:hover {
   background: #003357;
 }
 
 /* Bottom Desktop Scrubber Bar */
-.preview-desktop-scrubber {
+.preview-desktop-scrubber,
+.preview-bottom-scrubber {
   min-height: 52px;
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
@@ -3277,48 +3344,60 @@ tr:last-child td {
 /* Bulk Edit & In-Place Editable Page Styles */
 .cf-image-floating-bar {
   position: absolute;
-  top: 8pt;
+  top: 10pt;
   right: 12pt;
   display: flex;
   align-items: center;
-  gap: 5pt;
-  z-index: 10;
+  gap: 6pt;
+  z-index: 25;
+  background: rgba(15, 23, 42, 0.90);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 4pt 8pt;
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .cf-floating-btn {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 73, 122, 0.25);
-  border-radius: 6pt;
-  padding: 3pt 8pt;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 4pt 10pt;
   display: inline-flex;
   align-items: center;
-  gap: 4pt;
+  gap: 5pt;
   font-family: 'Tajawal', sans-serif;
-  font-size: 8.5pt;
+  font-size: 10pt;
   font-weight: 700;
-  color: #00497A;
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .cf-floating-btn:hover {
-  background: #ffffff;
-  border-color: #00497A;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(0, 73, 122, 0.2);
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.cf-floating-btn--primary {
+  background: #0284c7;
+  border-color: #38bdf8;
 }
 
 .cf-floating-btn--danger {
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.3);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.25);
 }
 
 .cf-floating-btn--danger:hover {
-  background: #fee2e2;
-  border-color: #dc2626;
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #ef4444;
 }
 
 .cf-image-card--drag-over {

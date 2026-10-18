@@ -1155,12 +1155,12 @@ function EditableProductSheet({
         <div className="cf-image-floating-bar" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            className="cf-floating-btn"
+            className="cf-floating-btn cf-floating-btn--primary"
             onClick={() => fileInputRef.current?.click()}
             title="رفع صورة جديدة من جهازك"
           >
-            <Icon name="upload" size={13} />
-            <span>رفع</span>
+            <Icon name="upload" size={15} />
+            <span>رفع صورة</span>
           </button>
           <input
             type="file"
@@ -1179,8 +1179,8 @@ function EditableProductSheet({
             onClick={() => onOpenMediaPicker(product.id)}
             title="اختيار صورة من معرض الصور"
           >
-            <Icon name="image" size={13} />
-            <span>المعرض</span>
+            <Icon name="image" size={15} />
+            <span>من المعرض</span>
           </button>
           {product.imageUrl && (
             <button
@@ -1189,7 +1189,8 @@ function EditableProductSheet({
               onClick={() => onUpdateField(product.id, 'imageUrl', '')}
               title="إزالة صورة المنتج"
             >
-              <Icon name="trash" size={13} />
+              <Icon name="trash" size={15} />
+              <span>إزالة</span>
             </button>
           )}
         </div>
@@ -1454,6 +1455,15 @@ function BulkEditModal({
   const thumbnailsRef = useRef(null);
   const dialogRef = useRef(null);
 
+  // Lock body scroll while BulkEditModal is mounted
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
   // Identify which products have been modified
   const modifiedProductIds = useMemo(() => {
     const set = new Set();
@@ -1491,6 +1501,26 @@ function BulkEditModal({
       thumbEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [draftProducts.length]);
+
+  const handleMainScroll = useCallback(() => {
+    if (!mainScrollRef.current) return;
+    const scrollTop = mainScrollRef.current.scrollTop;
+    let closestIndex = 0;
+    let minDistance = Infinity;
+
+    draftProducts.forEach((_, idx) => {
+      const el = document.getElementById(`bulk-edit-page-${idx}`);
+      if (el) {
+        const dist = Math.abs(el.offsetTop - scrollTop - 80);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestIndex = idx;
+        }
+      }
+    });
+
+    setActivePageIndex(closestIndex);
+  }, [draftProducts]);
 
   const updateProductField = useCallback((productId, field, value) => {
     setDraftProducts((curr) =>
@@ -1707,50 +1737,52 @@ function BulkEditModal({
 
             {/* Main Canvas Scroll Area */}
             <div className="preview-main-canvas-wrap">
-              <main className="preview-main-scroll-area" ref={mainScrollRef}>
-                <div className="preview-pages-column">
-                  {draftProducts.map((prod, idx) => {
-                    const isModified = modifiedProductIds.has(prod.id);
-                    return (
-                      <div
-                        key={prod.id}
-                        id={`bulk-edit-page-${idx}`}
-                        className="catalog-preview-page-wrap"
-                      >
-                        <div className="catalog-preview-page-header">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <strong>صفحة {idx + 1} من {draftProducts.length}</strong>
-                            {isModified && (
-                              <span className="bulk-page-modified-tag">
-                                <span className="bulk-thumb-dot" />
-                                معدلة
-                              </span>
-                            )}
-                          </div>
-                          <span>{prod.nameAr || prod.nameEn || 'صفحة منتج'}</span>
+              <div
+                className="preview-main-scroll"
+                ref={mainScrollRef}
+                onScroll={handleMainScroll}
+              >
+                {draftProducts.map((prod, idx) => {
+                  const isModified = modifiedProductIds.has(prod.id);
+                  return (
+                    <div
+                      key={prod.id}
+                      id={`bulk-edit-page-${idx}`}
+                      className="catalog-preview-page-wrap"
+                    >
+                      <div className="catalog-preview-page-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong>صفحة {idx + 1} من {draftProducts.length}</strong>
+                          {isModified && (
+                            <span className="bulk-page-modified-tag">
+                              <span className="bulk-thumb-dot" />
+                              معدلة
+                            </span>
+                          )}
                         </div>
-                        <ScaledPageWrapper scale={effectiveScale}>
-                          <EditableProductSheet
-                            brand={brand}
-                            product={prod}
-                            variants={prod.variants}
-                            onUpdateField={updateProductField}
-                            onUpdateVariantCell={updateVariantCell}
-                            onOpenMediaPicker={(pId) => setActiveMediaPickerProductId(pId)}
-                            onUploadImageFile={handleUploadImageFile}
-                            isUploading={uploadingProductId === prod.id}
-                            isDragOver={dragOverProductId === prod.id}
-                            onSetDragOver={handleSetDragOver}
-                          />
-                        </ScaledPageWrapper>
+                        <span>{prod.nameAr || prod.nameEn || 'صفحة منتج'}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </main>
+                      <ScaledPageWrapper scale={effectiveScale}>
+                        <EditableProductSheet
+                          brand={brand}
+                          product={prod}
+                          variants={prod.variants}
+                          onUpdateField={updateProductField}
+                          onUpdateVariantCell={updateVariantCell}
+                          onOpenMediaPicker={(pId) => setActiveMediaPickerProductId(pId)}
+                          onUploadImageFile={handleUploadImageFile}
+                          isUploading={uploadingProductId === prod.id}
+                          isDragOver={dragOverProductId === prod.id}
+                          onSetDragOver={handleSetDragOver}
+                        />
+                      </ScaledPageWrapper>
+                    </div>
+                  );
+                })}
+              </div>
 
               {/* Bottom Scrubber Bar */}
-              <footer className="preview-bottom-scrubber">
+              <footer className="preview-desktop-scrubber">
                 <button
                   type="button"
                   className="scrubber-btn"
@@ -3444,6 +3476,7 @@ export default function Home() {
     productModal ||
     previewModal ||
     catalogPreviewModal ||
+    bulkEditModal ||
     confirmModal ||
     mobileMenu
   );
@@ -3606,10 +3639,25 @@ export default function Home() {
     loadBrand(brand.id).catch((error) => notify(error.message, 'warning'));
   };
 
-  const onBrandSaved = async (brand) => {
+  const onBrandSaved = (brand) => {
     setBrandModal(null);
-    await refresh(brand.id);
+    setBrands((prev) => {
+      const exists = prev.some((b) => b.id === brand.id);
+      if (exists) {
+        return prev.map((b) => (b.id === brand.id ? { ...b, ...brand } : b));
+      }
+      return [brand, ...prev];
+    });
+    setActiveBrand((curr) => (curr?.id === brand.id ? { ...curr, ...brand } : brand));
     go('catalog');
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('brand', brand.nameAr || brand.id);
+        window.history.pushState({ brandId: brand.id, brandName: brand.nameAr }, '', url.toString());
+      } catch {}
+    }
+    refresh(brand.id).catch(() => {});
   };
   const saveProduct = async (draft) => {
     if (!activeBrand) return;
@@ -3620,57 +3668,130 @@ export default function Home() {
         notify('تم تعديل الصف قبل الإدراج.');
         return;
       }
-      if (productModal?.mode === 'edit') {
-        await request('/api/products/' + draft.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: activeBrand.id, product: draft }) });
-        notify('تم حفظ تعديلات الصفحة.');
-      } else {
-        await request('/api/brands/' + activeBrand.id + '/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product: draft }) });
-        notify('تمت إضافة صفحة المنتج.');
+      const isEdit = productModal?.mode === 'edit';
+      const targetDraft = { ...draft, id: draft.id || newId() };
+
+      // Optimistic instant local update
+      setActiveBrand((curr) => {
+        if (!curr) return curr;
+        const currentProducts = curr.products || [];
+        if (isEdit) {
+          return {
+            ...curr,
+            products: currentProducts.map((p) => (p.id === targetDraft.id ? targetDraft : p)),
+          };
+        }
+        return {
+          ...curr,
+          products: [...currentProducts, targetDraft],
+        };
+      });
+
+      if (!isEdit) {
+        setBrands((curr) =>
+          curr.map((b) =>
+            b.id === activeBrand.id
+              ? { ...b, productCount: (b.productCount || 0) + 1 }
+              : b
+          )
+        );
       }
+
       setProductModal(null);
-      await refresh(activeBrand.id);
-    } catch (error) { notify(error.message, 'warning'); }
+      notify(isEdit ? 'تم حفظ تعديلات الصفحة.' : 'تمت إضافة صفحة المنتج.');
+
+      if (isEdit) {
+        await request('/api/products/' + targetDraft.id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brandId: activeBrand.id, product: targetDraft }),
+        });
+      } else {
+        await request('/api/brands/' + activeBrand.id + '/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product: targetDraft }),
+        });
+      }
+      loadBrand(activeBrand.id).catch(() => {});
+    } catch (error) {
+      notify(error.message, 'warning');
+      loadBrand(activeBrand.id).catch(() => {});
+    }
   };
 
   const handleBulkSave = async (modifiedProducts) => {
     if (!modifiedProducts || !modifiedProducts.length || !activeBrand) return;
-    setBusy(true);
+    const modMap = new Map(modifiedProducts.map((p) => [p.id, p]));
+
+    // Instant optimistic update
+    setActiveBrand((curr) => {
+      if (!curr) return curr;
+      return {
+        ...curr,
+        products: (curr.products || []).map((p) => modMap.get(p.id) || p),
+      };
+    });
+    setBulkEditModal(false);
+    notify(`تم حفظ التعديلات الجماعية على ${modifiedProducts.length} صفحة بنجاح!`);
+
     try {
-      const result = await request(`/api/brands/${activeBrand.id}/products`, {
+      await request(`/api/brands/${activeBrand.id}/products`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products: modifiedProducts }),
       });
-      await refresh(activeBrand.id);
-      notify(`تم حفظ التعديلات الجماعية على ${result.count || modifiedProducts.length} صفحة بنجاح!`);
-      setBulkEditModal(false);
+      loadBrand(activeBrand.id).catch(() => {});
     } catch (error) {
       notify(error.message || 'فشل حفظ التعديلات الجماعية.', 'warning');
-      throw error;
-    } finally {
-      setBusy(false);
+      loadBrand(activeBrand.id).catch(() => {});
     }
   };
 
   const duplicateProduct = async (product) => {
     if (!activeBrand) return;
+    const clone = {
+      ...product,
+      id: newId(),
+      nameAr: product.nameAr ? product.nameAr + ' (نسخة)' : '',
+      nameEn: product.nameEn ? product.nameEn + ' (Copy)' : '',
+      variants: product.variants?.map((v) => ({ ...v, id: newId() })) || [emptyVariant()],
+    };
+
+    // Instant optimistic update: insert clone right after the duplicated product
+    setActiveBrand((curr) => {
+      if (!curr) return curr;
+      const currentProducts = curr.products || [];
+      const idx = currentProducts.findIndex((p) => p.id === product.id);
+      const newProducts = [...currentProducts];
+      if (idx !== -1) {
+        newProducts.splice(idx + 1, 0, clone);
+      } else {
+        newProducts.push(clone);
+      }
+      return { ...curr, products: newProducts };
+    });
+
+    setBrands((curr) =>
+      curr.map((b) =>
+        b.id === activeBrand.id
+          ? { ...b, productCount: (b.productCount || 0) + 1 }
+          : b
+      )
+    );
+
+    notify('تم نسخ وتكرار صفحة المنتج.');
+
     try {
-      const clone = {
-        ...product,
-        id: newId(),
-        nameAr: product.nameAr ? product.nameAr + ' (نسخة)' : '',
-        nameEn: product.nameEn ? product.nameEn + ' (Copy)' : '',
-        variants: product.variants?.map((v) => ({ ...v, id: newId() })) || [emptyVariant()],
-      };
       await request('/api/brands/' + activeBrand.id + '/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product: clone }),
       });
-      notify('تم نسخ وتكرار صفحة المنتج.');
-      await refresh(activeBrand.id);
+      loadBrand(activeBrand.id).catch(() => {});
     } catch (error) {
       notify(error.message, 'warning');
+      loadBrand(activeBrand.id).catch(() => {});
     }
   };
   const removeProduct = (product) => {
@@ -3681,11 +3802,34 @@ export default function Home() {
       confirmText: 'حذف الصفحة',
       tone: 'danger',
       onConfirm: async () => {
+        setConfirmModal(null);
+        setActiveBrand((curr) => {
+          if (!curr) return curr;
+          return {
+            ...curr,
+            products: (curr.products || []).filter((p) => p.id !== product.id),
+          };
+        });
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(product.id);
+          return next;
+        });
+        setBrands((curr) =>
+          curr.map((b) =>
+            b.id === activeBrand.id
+              ? { ...b, productCount: Math.max(0, (b.productCount || 1) - 1) }
+              : b
+          )
+        );
+        notify('تم حذف الصفحة.');
+
         try {
           await request('/api/products/' + product.id + '?brandId=' + activeBrand.id, { method: 'DELETE' });
-          notify('تم حذف الصفحة.');
-          await refresh(activeBrand.id);
-        } catch (error) { notify(error.message, 'warning'); }
+        } catch (error) {
+          notify(error.message, 'warning');
+          loadBrand(activeBrand.id).catch(() => {});
+        }
       },
     });
   };
@@ -3699,17 +3843,34 @@ export default function Home() {
       confirmText: `حذف ${count} صفحة`,
       tone: 'danger',
       onConfirm: async () => {
+        setConfirmModal(null);
+        const delSet = new Set(idsToDelete);
+        setActiveBrand((curr) => {
+          if (!curr) return curr;
+          return {
+            ...curr,
+            products: (curr.products || []).filter((p) => !delSet.has(p.id)),
+          };
+        });
+        setSelectedIds(new Set());
+        setBrands((curr) =>
+          curr.map((b) =>
+            b.id === activeBrand.id
+              ? { ...b, productCount: Math.max(0, (b.productCount || count) - count) }
+              : b
+          )
+        );
+        notify(`تم حذف ${count} صفحة بنجاح.`);
+
         try {
           await request('/api/brands/' + activeBrand.id + '/products', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ productIds: idsToDelete }),
           });
-          notify(`تم حذف ${count} صفحة بنجاح.`);
-          setSelectedIds(new Set());
-          await refresh(activeBrand.id);
         } catch (error) {
           notify(error.message, 'warning');
+          loadBrand(activeBrand.id).catch(() => {});
         }
       },
     });
@@ -3843,15 +4004,24 @@ export default function Home() {
       confirmText: 'حذف البراند نهائياً',
       tone: 'danger',
       onConfirm: async () => {
+        setConfirmModal(null);
+        setBrands((curr) => curr.filter((b) => b.id !== brand.id));
+        if (activeBrand?.id === brand.id) {
+          const remaining = brands.filter((b) => b.id !== brand.id);
+          const nextActive = remaining[0] || null;
+          setActiveBrand(nextActive);
+          if (nextActive) loadBrand(nextActive.id).catch(() => {});
+          try { localStorage.removeItem(CACHE_ACTIVE_KEY); } catch {}
+        }
+        notify('تم حذف البراند.');
+
         try {
           await request('/api/brands/' + brand.id, { method: 'DELETE' });
-          const list = await loadBrands();
-          if (activeBrand?.id === brand.id) {
-            try { localStorage.removeItem(CACHE_ACTIVE_KEY); } catch {}
-            if (list[0]) await loadBrand(list[0].id); else setActiveBrand(null);
-          }
-          notify('تم حذف البراند.');
-        } catch (error) { notify(error.message, 'warning'); }
+          loadBrands().catch(() => {});
+        } catch (error) {
+          notify(error.message, 'warning');
+          refresh().catch(() => {});
+        }
       },
     });
   };
@@ -4094,19 +4264,42 @@ export default function Home() {
           <Icon name="menu" size={20} />
         </button>
         <div className="topbar-title-wrap">
-          <h1>
-            {view === 'dashboard'
-              ? 'لوحة التحكم'
-              : view === 'brands'
-              ? 'البراندات'
-              : view === 'catalog'
-              ? (activeBrand?.nameAr ? `صفحات ${activeBrand.nameAr}` : 'صفحات الكتالوج')
-              : view === 'gallery'
-              ? 'معرض الصور'
-              : view === 'import'
-              ? 'استيراد ومراجعة الملف'
-              : 'إعدادات التصميم'}
-          </h1>
+          {view === 'catalog' && brands.length > 1 ? (
+            <div className="topbar-brand-select-wrap">
+              <select
+                className="topbar-brand-select"
+                value={activeBrand?.id || ''}
+                onChange={(e) => {
+                  const found = brands.find((b) => b.id === e.target.value);
+                  if (found) chooseBrand(found);
+                }}
+                title="التبديل بين كتالوجات البراندات"
+              >
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.nameAr}
+                  </option>
+                ))}
+              </select>
+              <span className="topbar-brand-select-arrow">
+                <Icon name="arrow" size={14} style={{ transform: 'rotate(90deg)' }} />
+              </span>
+            </div>
+          ) : (
+            <h1>
+              {view === 'dashboard'
+                ? 'لوحة التحكم'
+                : view === 'brands'
+                ? 'البراندات'
+                : view === 'catalog'
+                ? (activeBrand?.nameAr || 'الكتالوج')
+                : view === 'gallery'
+                ? 'معرض الصور'
+                : view === 'import'
+                ? 'استيراد ومراجعة الملف'
+                : 'إعدادات التصميم'}
+            </h1>
+          )}
         </div>
         <div className="topbar-actions">
           <button
@@ -4186,25 +4379,10 @@ export default function Home() {
                   <div className="brand-heading-meta">
                     <div className="brand-heading-title-row">
                       <h2>{activeBrand.nameAr}</h2>
-                      {brands.length > 1 && (
-                        <select
-                          className="brand-select-dropdown"
-                          value={activeBrand.id}
-                          onChange={(e) => {
-                            const found = brands.find((b) => b.id === e.target.value);
-                            if (found) chooseBrand(found);
-                          }}
-                          title="التبديل بين كتالوجات البراندات"
-                        >
-                          {brands.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.nameAr}
-                            </option>
-                          ))}
-                        </select>
-                      )}
                     </div>
-                    <p>كتالوج كامل بـ {products.length} صفحة</p>
+                    <span className="brand-pages-black-badge">
+                      {products.length} صفحة
+                    </span>
                   </div>
                 </div>
 
