@@ -210,8 +210,8 @@ function CatalogWelcomeSheet({ brand }) {
 }
 
 function CatalogClosingSheet({ brand }) {
-  const brandAr = brand?.nameAr || 'كـات فـود';
-  const brandEn = brand?.nameEn || 'CAT FOOD';
+  const brandAr = 'كات فوود';
+  const brandEn = 'CAT FOOD';
 
   return (
     <section className="catfood-page" id="closing" aria-label="صفحة الختام">
@@ -442,6 +442,8 @@ function SortableProductCard({
 function CardImage({ src, alt }) {
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [imgSrc, setImgSrc] = useState('');
+  const imgRef = useRef(null);
 
   // Cloudinary image auto-format & quality optimization for lightning speed
   const optimizedSrc = useMemo(() => {
@@ -452,16 +454,36 @@ function CardImage({ src, alt }) {
     return src;
   }, [src]);
 
+  useEffect(() => {
+    setImgSrc(optimizedSrc);
+    setHasError(false);
+    // Instant cache detection: if image was already cached by the browser, mark loaded immediately
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
+  }, [optimizedSrc]);
+
+  const handleError = () => {
+    if (imgSrc !== src && src) {
+      setImgSrc(src);
+    } else {
+      setHasError(true);
+    }
+  };
+
   return (
     <div className="card-image-wrap">
       {!loaded && !hasError && <div className="card-image-skeleton" />}
       <img
-        src={optimizedSrc}
+        ref={imgRef}
+        src={imgSrc || optimizedSrc}
         alt={alt || ''}
         loading="lazy"
         decoding="async"
         onLoad={() => setLoaded(true)}
-        onError={() => setHasError(true)}
+        onError={handleError}
         className={['card-img-element', loaded && 'is-loaded'].filter(Boolean).join(' ')}
       />
     </div>
@@ -603,22 +625,99 @@ function ProductCard({
 }
 
 function Modal({ title, subtitle, children, onClose, wide = false }) {
+  const modalRef = useRef(null);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = useRef(null);
+  const currentDragYRef = useRef(0);
+
+  const handlePointerDown = (e) => {
+    if (e.target.closest('button, input, select, textarea, a, .icon-button')) {
+      return;
+    }
+    startYRef.current = e.clientY;
+    currentDragYRef.current = 0;
+    setIsDragging(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging || startYRef.current === null) return;
+    const deltaY = e.clientY - startYRef.current;
+    const offset = deltaY > 0 ? deltaY : deltaY * 0.15;
+    currentDragYRef.current = offset;
+    setDragY(offset);
+  };
+
+  const handlePointerEnd = (e) => {
+    if (!isDragging) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    setIsDragging(false);
+    startYRef.current = null;
+    const finalOffset = currentDragYRef.current;
+    if (finalOffset > 75) {
+      if (onClose) onClose();
+      setDragY(0);
+    } else {
+      setDragY(0);
+    }
+  };
+
   return (
     <div
       className="modal-backdrop"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && onClose) onClose();
+        if (modalRef.current && !modalRef.current.contains(e.target) && onClose) {
+          onClose();
+        }
       }}
     >
-      <section className={['modal', wide && 'modal--wide'].filter(Boolean).join(' ')} role="dialog" aria-modal="true" aria-label={title}>
-        <div className="modal-sheet-handle" aria-hidden="true" />
-        <header>
+      <section
+        ref={modalRef}
+        className={['modal', wide && 'modal--wide'].filter(Boolean).join(' ')}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        style={{
+          transform: dragY ? `translate3d(0, ${Math.max(0, dragY)}px, 0)` : undefined,
+          transition: isDragging ? 'none' : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        <div
+          className="modal-sheet-handle"
+          aria-hidden="true"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+        />
+        <header
+          className="modal-header-draggable"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+        >
           <div>
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="إغلاق"><Icon name="close" /></button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose?.();
+            }}
+            aria-label="إغلاق"
+          >
+            <Icon name="close" />
+          </button>
         </header>
         {children}
       </section>
@@ -811,16 +910,20 @@ function CatalogPreviewModal({
 
   // Desktop Full-Screen View:
   const currentPage = allCatalogPages[activePageIndex] || allCatalogPages[0];
+  const previewDialogRef = useRef(null);
 
   return (
     <div
       className="catalog-preview-fullscreen-backdrop"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && onClose) onClose();
+        if (previewDialogRef.current && !previewDialogRef.current.contains(e.target) && onClose) {
+          onClose();
+        }
       }}
     >
       <section
+        ref={previewDialogRef}
         className="catalog-preview-fullscreen-dialog"
         role="dialog"
         aria-modal="true"
@@ -986,16 +1089,19 @@ function CatalogPreviewModal({
 function ConfirmModal({ config, onClose }) {
   if (!config) return null;
   const { title, message, confirmText = 'تأكيد الحذف', cancelText = 'إلغاء', tone = 'danger', onConfirm } = config;
+  const boxRef = useRef(null);
 
   return (
     <div
       className="modal-backdrop"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && onClose) onClose();
+        if (boxRef.current && !boxRef.current.contains(e.target) && onClose) {
+          onClose();
+        }
       }}
     >
-      <div className="confirm-modal-box" role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={boxRef} className="confirm-modal-box" role="dialog" aria-modal="true" aria-label={title}>
         <div className={['confirm-icon-circle', tone === 'danger' ? 'is-danger' : 'is-primary'].filter(Boolean).join(' ')}>
           <Icon name={tone === 'danger' ? 'trash' : 'check'} size={24} />
         </div>
@@ -2895,8 +3001,7 @@ export default function Home() {
     <aside className={['app-sidebar', mobileMenu && 'is-open'].filter(Boolean).join(' ')}>
       <div className="sidebar-brand sidebar-brand--catfood">
         <div className="sidebar-catfood-brand">
-          <strong className="sidebar-brand-ar">كات فوود</strong>
-          <span className="sidebar-brand-en">CAT FOOD</span>
+          <span className="sidebar-brand-unified">كات فوود - CAT FOOD</span>
         </div>
       </div>
 

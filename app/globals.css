@@ -143,31 +143,22 @@ h1, h2, h3, h4, p {
 }
 
 .sidebar-brand--catfood {
-  padding: 4px 8px 24px;
+  padding: 8px 10px 24px;
 }
 
 .sidebar-catfood-brand {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
 }
 
-.sidebar-brand-ar {
-  font-family: 'KO Sans', 'Noto Kufi Arabic', 'Tajawal', sans-serif;
-  font-size: 21px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: -0.2px;
-  line-height: 1.2;
-}
-
-.sidebar-brand-en {
-  font-family: 'KO Sans', 'IBM Plex Sans', sans-serif;
-  font-size: 11px;
+.sidebar-brand-unified {
+  font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
   font-weight: 700;
-  color: #38bdf8;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  color: #ffffff;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 
 
@@ -1414,6 +1405,34 @@ h1, h2, h3, h4, p {
   max-width: 980px;
 }
 
+.modal-sheet-handle {
+  display: block;
+  width: 44px;
+  height: 4px;
+  background: #e4e4e7;
+  border-radius: 9999px;
+  margin: 10px auto 4px;
+  touch-action: none;
+  cursor: grab;
+  transition: background-color 0.15s ease;
+}
+
+.modal-sheet-handle:hover,
+.modal-sheet-handle:active {
+  background: #a1a1aa;
+}
+
+.modal-header-draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.modal-header-draggable:active {
+  cursor: grabbing;
+}
+
 .modal > header {
   padding: 16px 22px;
   background: #ffffff;
@@ -1779,28 +1798,31 @@ input:focus, select:focus, textarea:focus {
   border-radius: 999px;
 }
 
-/* Modern Skeleton Shimmer & Fast Lazy Loading */
-@keyframes skeletonShimmer {
+/* Ultra-Soft Gentle Skeleton Shimmer & Fast Lazy Loading */
+@keyframes skeletonSoftShimmer {
   0% {
-    background-position: 200% 0;
+    background-position: 150% 0;
   }
   100% {
-    background-position: -200% 0;
+    background-position: -150% 0;
   }
 }
 
 .card-image-skeleton {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #f4f4f5 25%, #e4e4e7 37%, #f4f4f5 63%);
-  background-size: 400% 100%;
-  animation: skeletonShimmer 1.4s ease infinite;
+  background: linear-gradient(90deg, #f8fafc 25%, #f1f5f9 50%, #f8fafc 75%);
+  background-size: 200% 100%;
+  animation: skeletonSoftShimmer 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  z-index: 1;
 }
 
 .skeleton-line {
-  background: linear-gradient(90deg, #f4f4f5 25%, #e4e4e7 37%, #f4f4f5 63%);
-  background-size: 400% 100%;
-  animation: skeletonShimmer 1.4s ease infinite;
+  background: linear-gradient(90deg, #f8fafc 25%, #f1f5f9 50%, #f8fafc 75%);
+  background-size: 200% 100%;
+  animation: skeletonSoftShimmer 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .card-image-wrap {
@@ -1811,6 +1833,7 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  background-color: #fafbfc;
 }
 
 .card-img-element {
@@ -1818,7 +1841,9 @@ input:focus, select:focus, textarea:focus {
   height: 100%;
   object-fit: contain;
   opacity: 0;
-  transition: opacity 0.25s ease-in-out;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 2;
 }
 
 .card-img-element.is-loaded {
