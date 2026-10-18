@@ -38,12 +38,27 @@ const DEFAULT_SETTINGS = {
   footerText: 'السعر غير شامل الضريبة',
   currency: 'ج.م',
   visible: { description: true, prices: true, cartonPrice: true, carton: true, barcode: true },
+  headerType: 'text',
+  headerTextAr: 'كات فوود',
+  headerTextEn: 'CAT FOOD',
+  headerLogoUrl: '',
 };
 
 const newId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
 const emptyVariant = () => ({ id: newId(), weight: '', unit: 'g', sku: '', qtyPerCarton: '', pricePerPiece: '', pricePerCarton: '' });
 const emptyProduct = () => ({ id: newId(), nameAr: '', nameEn: '', categoryAr: '', categoryEn: '', descriptionAr: '', descriptionEn: '', barcode: '', imageUrl: '', variants: [emptyVariant()] });
-const mergeSettings = (settings) => ({ ...DEFAULT_SETTINGS, ...(settings || {}), visible: { ...DEFAULT_SETTINGS.visible, ...((settings || {}).visible || {}) } });
+const mergeSettings = (settings) => {
+  const current = settings || {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...current,
+    visible: { ...DEFAULT_SETTINGS.visible, ...(current.visible || {}) },
+    headerType: current.headerType === 'image' ? 'image' : 'text',
+    headerTextAr: typeof current.headerTextAr === 'string' ? current.headerTextAr : DEFAULT_SETTINGS.headerTextAr,
+    headerTextEn: typeof current.headerTextEn === 'string' ? current.headerTextEn : DEFAULT_SETTINGS.headerTextEn,
+    headerLogoUrl: typeof current.headerLogoUrl === 'string' ? current.headerLogoUrl : DEFAULT_SETTINGS.headerLogoUrl,
+  };
+};
 const price = (value, currency) => value === '' || value === undefined ? '—' : String(value) + ' ' + currency;
 const formatBytes = (bytes) => {
   if (!bytes || bytes === 0) return '0 B';
@@ -82,6 +97,7 @@ function Icon({ name, size = 20 }) {
     columns2: <><rect x="3.5" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /><rect x="13" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /></>,
     square: <rect x="3" y="3" width="18" height="18" rx="4" />,
     sparkles: <><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" /><path d="M5 3v4M3 5h4M19 17v4M17 19h4" /></>,
+    type: <><polyline points="4 7 4 4 20 4 20 7" /><line x1="9" y1="20" x2="15" y2="20" /><line x1="12" y1="4" x2="12" y2="20" /></>,
   };
   return <svg {...props}>{shapes[name] || shapes.grid}</svg>;
 }
@@ -209,16 +225,44 @@ function formatVariantCell(variant, product, key) {
   }
 }
 
+function CatalogHeader({ brand, settings: propSettings }) {
+  const settings = propSettings || mergeSettings(brand?.settings);
+  const isImage = settings.headerType === 'image' && Boolean(settings.headerLogoUrl);
+  const headerTextAr = settings.headerTextAr || 'كات فوود';
+  const headerTextEn = settings.headerTextEn || 'CAT FOOD';
+
+  return (
+    <>
+      <div className="cf-header-band" />
+      {isImage ? (
+        <div className="cf-header-logo-wrap">
+          <img
+            src={optimizeCloudinaryUrl(settings.headerLogoUrl, { width: 900, format: 'auto', background: '' })}
+            alt={headerTextAr || 'شعار الكتالوج'}
+            className="cf-header-logo-img"
+            loading="eager"
+            decoding="sync"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="cf-header-ar">{headerTextAr}</div>
+          <div className="cf-header-en">{headerTextEn}</div>
+        </>
+      )}
+    </>
+  );
+}
+
 function CatalogWelcomeSheet({ brand }) {
   const brandAr = brand?.nameAr || 'كـات فـود';
   const brandEn = brand?.nameEn || 'CAT FOOD';
   const logoUrl = brand?.logoUrl;
+  const settings = mergeSettings(brand?.settings);
 
   return (
     <section className="catfood-page" id="welcome" aria-label="صفحة الترحيب">
-      <div className="cf-header-band" />
-      <div className="cf-header-ar">كات فوود</div>
-      <div className="cf-header-en">CAT FOOD</div>
+      <CatalogHeader brand={brand} settings={settings} />
 
       <div className="cf-dash-left" />
       <div className="cf-dash-right" />
@@ -277,9 +321,7 @@ function ProductSheet({ brand, product, variants: customVariants }) {
   return (
     <article className="catfood-page" data-page="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
       {/* Header Band */}
-      <div className="cf-header-band" />
-      <div className="cf-header-ar">كات فوود</div>
-      <div className="cf-header-en">CAT FOOD</div>
+      <CatalogHeader brand={brand} settings={settings} />
 
       {/* Image Card */}
       <div className="cf-image-card" style={{ height: `${layout.cardHeight}pt` }}>
@@ -1150,9 +1192,7 @@ function EditableProductSheet({
   return (
     <article className="catfood-page catfood-page--editable" data-page="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
       {/* Header Band */}
-      <div className="cf-header-band" />
-      <div className="cf-header-ar">كات فوود</div>
-      <div className="cf-header-en">CAT FOOD</div>
+      <CatalogHeader brand={brand} settings={settings} />
 
       {/* Image Card with Drag & Drop and Floating Actions */}
       <div
@@ -3422,6 +3462,10 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
   const [activeDragId, setActiveDragId] = useState(null);
+  const [showHeaderMediaPicker, setShowHeaderMediaPicker] = useState(false);
+  const [uploadingHeaderLogo, setUploadingHeaderLogo] = useState(false);
+  const [applyingAllHeaders, setApplyingAllHeaders] = useState(false);
+  const headerFileInputRef = useRef(null);
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -4304,6 +4348,58 @@ export default function Home() {
   const updateSettings = (key, value) => setActiveBrand((current) => ({ ...current, settings: { ...mergeSettings(current.settings), [key]: value } }));
   const toggleVisible = (key) => setActiveBrand((current) => ({ ...current, settings: { ...mergeSettings(current.settings), visible: { ...mergeSettings(current.settings).visible, [key]: !mergeSettings(current.settings).visible[key] } } }));
 
+  const handleHeaderDeviceUpload = async (file) => {
+    if (!file || !activeBrand) return;
+    setUploadingHeaderLogo(true);
+    try {
+      const optimized = await optimizeImageForUpload(file);
+      const formData = new FormData();
+      formData.set('file', optimized);
+      formData.set('folder', (activeBrand.id || 'general') + '/logos');
+      formData.set('brandId', activeBrand.id);
+      const result = await request('/api/upload', { method: 'POST', body: formData });
+      updateSettings('headerLogoUrl', result.url);
+      notify('تم رفع شعار الهيدر بنجاح.');
+    } catch (err) {
+      notify(err.message || 'فشل رفع الشعار.', 'warning');
+    } finally {
+      setUploadingHeaderLogo(false);
+      if (headerFileInputRef.current) headerFileInputRef.current.value = '';
+    }
+  };
+
+  const applyHeaderToAllBrands = async () => {
+    if (!activeBrand) return;
+    const current = mergeSettings(activeBrand.settings);
+    const labelType = current.headerType === 'image' ? 'شعار صورة' : 'شعار نصي';
+    const confirmed = window.confirm(
+      `هل تريد تطبيق إعدادات هذا الهيدر (${labelType} والنصوص/الصورة الحالية) على جميع البراندات في الكتالوج؟`
+    );
+    if (!confirmed) return;
+    setApplyingAllHeaders(true);
+    try {
+      const res = await request('/api/brands', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'apply_settings_all',
+          settings: {
+            headerType: current.headerType,
+            headerTextAr: current.headerTextAr,
+            headerTextEn: current.headerTextEn,
+            headerLogoUrl: current.headerLogoUrl,
+          },
+        }),
+      });
+      notify(`تم تطبيق إعدادات الهيدر على جميع البراندات (${res.count || 'جميع'} براند) بنجاح.`);
+      await refresh(activeBrand.id);
+    } catch (err) {
+      notify(err.message || 'حدث خطأ أثناء تطبيق الإعدادات على جميع البراندات.', 'warning');
+    } finally {
+      setApplyingAllHeaders(false);
+    }
+  };
+
   const products = activeBrand?.products || [];
   const filteredProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -4929,7 +5025,222 @@ export default function Home() {
           )}
         </section>
       )}
-      {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'description', label: 'الوصف' }, { key: 'prices', label: 'سعر الحبة' }, { key: 'cartonPrice', label: 'سعر الكرتون' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key] !== false} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
+      {view === 'settings' && (
+        <section className="page-shell settings-page">
+          {activeBrand ? (
+            <form className="settings-card" onSubmit={updateBrandSettings}>
+              <div className="settings-intro">
+                <h2>إعدادات {activeBrand.nameAr}</h2>
+                <p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p>
+              </div>
+
+              {/* 1. قسم هيدر وشعار الكتالوج */}
+              <div className="settings-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h3 style={{ margin: 0 }}>شعار وهيدر الكتالوج</h3>
+                  <button
+                    type="button"
+                    className="button button-ghost"
+                    style={{ fontSize: '12px', padding: '6px 12px' }}
+                    onClick={applyHeaderToAllBrands}
+                    disabled={busy || applyingAllHeaders}
+                    title="تطبيق إعدادات هذا الهيدر (النوع، النصوص، أو الشعار) على جميع البراندات"
+                  >
+                    <Icon name="copy" size={14} />
+                    {applyingAllHeaders ? 'جاري التطبيق…' : 'تطبيق هذا الهيدر على كامل البراندات'}
+                  </button>
+                </div>
+                <p style={{ fontSize: '12px', color: '#71717a', margin: '0 0 14px' }}>
+                  تحديد ما يظهر في الشريط الأزرق العلوي لكل صفحات الكتالوج (شعار نصي أو صورة).
+                </p>
+
+                <div className="header-type-toggle">
+                  <button
+                    type="button"
+                    className={['header-type-btn', (mergeSettings(activeBrand.settings).headerType !== 'image') && 'active'].filter(Boolean).join(' ')}
+                    onClick={() => updateSettings('headerType', 'text')}
+                  >
+                    <Icon name="type" size={15} />
+                    <span>شعار نصي</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={['header-type-btn', (mergeSettings(activeBrand.settings).headerType === 'image') && 'active'].filter(Boolean).join(' ')}
+                    onClick={() => updateSettings('headerType', 'image')}
+                  >
+                    <Icon name="image" size={15} />
+                    <span>شعار صورة</span>
+                  </button>
+                </div>
+
+                {mergeSettings(activeBrand.settings).headerType === 'image' ? (
+                  <div className="header-logo-config" style={{ marginTop: '8px' }}>
+                    {mergeSettings(activeBrand.settings).headerLogoUrl ? (
+                      <div style={{ background: '#fafafa', border: '1px solid #e4e4e7', borderRadius: '10px', padding: '14px' }}>
+                        <label className="field-label" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>معاينة الشعار داخل شريط الهيدر</label>
+                        <div className="header-logo-preview-box">
+                          <img
+                            src={mergeSettings(activeBrand.settings).headerLogoUrl}
+                            alt="شعار الهيدر"
+                          />
+                          {uploadingHeaderLogo && <div className="product-image-uploading-overlay">جارٍ الرفع…</div>}
+                        </div>
+                        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            onClick={() => setShowHeaderMediaPicker(true)}
+                          >
+                            <Icon name="image" size={15} /> اختيار من المعرض
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost"
+                            onClick={() => headerFileInputRef.current?.click()}
+                            disabled={uploadingHeaderLogo}
+                          >
+                            <Icon name="upload" size={15} /> رفع من الجهاز
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost text-danger"
+                            onClick={() => updateSettings('headerLogoUrl', '')}
+                          >
+                            <Icon name="trash" size={15} /> إزالة الشعار
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="product-image-empty-dropzone"
+                        style={{ padding: '20px', textAlign: 'center', border: '1.5px dashed #d4d4d8', borderRadius: '10px', background: '#fafafa' }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (e.dataTransfer.files?.[0]) handleHeaderDeviceUpload(e.dataTransfer.files[0]);
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px', color: '#71717a' }}>
+                          <Icon name="image" size={32} />
+                        </div>
+                        <div style={{ marginBottom: '14px' }}>
+                          <strong style={{ display: 'block', fontSize: '13px', color: '#09090b', marginBottom: '4px' }}>اختر شعار الهيدر</strong>
+                          <span style={{ fontSize: '12px', color: '#71717a' }}>اختر صورة الشعار من المعرض أو ارفعها من جهازك مباشرة لتظهر في الشريط العلوي للكتالوج</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            onClick={() => setShowHeaderMediaPicker(true)}
+                          >
+                            <Icon name="image" size={15} /> اختيار من المعرض
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost"
+                            onClick={() => headerFileInputRef.current?.click()}
+                            disabled={uploadingHeaderLogo}
+                          >
+                            <Icon name="upload" size={15} /> {uploadingHeaderLogo ? 'جارٍ الرفع…' : 'رفع من الجهاز'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      ref={headerFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) handleHeaderDeviceUpload(e.target.files[0]);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="form-grid two">
+                    <Field label="نص الهيدر بالعربي">
+                      <input
+                        value={mergeSettings(activeBrand.settings).headerTextAr}
+                        onChange={(event) => updateSettings('headerTextAr', event.target.value)}
+                        placeholder="مثال: كات فوود"
+                      />
+                    </Field>
+                    <Field label="نص الهيدر بالإنجليزي">
+                      <input
+                        value={mergeSettings(activeBrand.settings).headerTextEn}
+                        onChange={(event) => updateSettings('headerTextEn', event.target.value)}
+                        placeholder="مثال: CAT FOOD"
+                        dir="ltr"
+                      />
+                    </Field>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. قسم التذييل والعملة */}
+              <div className="settings-section">
+                <h3>التذييل والعملة</h3>
+                <div className="form-grid two">
+                  <Field label="نص التذييل">
+                    <input
+                      value={mergeSettings(activeBrand.settings).footerText}
+                      onChange={(event) => updateSettings('footerText', event.target.value)}
+                    />
+                  </Field>
+                  <Field label="رمز العملة">
+                    <input
+                      value={mergeSettings(activeBrand.settings).currency}
+                      onChange={(event) => updateSettings('currency', event.target.value)}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* 3. الحقول الظاهرة في صفحة المنتج */}
+              <div className="settings-section">
+                <h3>الحقول الظاهرة في صفحة المنتج</h3>
+                <div className="visibility-options">
+                  {[
+                    { key: 'description', label: 'الوصف' },
+                    { key: 'prices', label: 'سعر الحبة' },
+                    { key: 'cartonPrice', label: 'سعر الكرتون' },
+                    { key: 'carton', label: 'عدد الكرتون' },
+                    { key: 'barcode', label: 'الباركود' },
+                  ].map((option) => (
+                    <label key={option.key} className="switch-row">
+                      <span>{option.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={mergeSettings(activeBrand.settings).visible[option.key] !== false}
+                        onChange={() => toggleVisible(option.key)}
+                      />
+                      <i />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="settings-save" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button className="button button-primary" disabled={busy || uploadingHeaderLogo}>
+                  <Icon name="check" size={18} />
+                  {busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={applyHeaderToAllBrands}
+                  disabled={busy || applyingAllHeaders}
+                >
+                  <Icon name="copy" size={16} />
+                  {applyingAllHeaders ? 'جاري التطبيق…' : 'تطبيق هذا الهيدر على جميع البراندات'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <NeedsBrand onCreate={() => setBrandModal({})} />
+          )}
+        </section>
+      )}
     </section>
     {exporting && activeBrand && (
       <div className="pdf-stage" ref={pdfRef} aria-hidden="true">
@@ -5046,6 +5357,22 @@ export default function Home() {
       />
     )}
     {confirmModal && <ConfirmModal config={confirmModal} onClose={() => setConfirmModal(null)} />}
+    {showHeaderMediaPicker && (
+      <MediaPickerModal
+        brands={brands}
+        activeBrandId={activeBrand?.id}
+        onClose={() => setShowHeaderMediaPicker(false)}
+        onSelect={(urlOrItem) => {
+          const url = typeof urlOrItem === 'string' ? urlOrItem : urlOrItem?.url || '';
+          if (url) {
+            updateSettings('headerLogoUrl', url);
+            notify('تم اختيار شعار الهيدر بنجاح.');
+          }
+          setShowHeaderMediaPicker(false);
+        }}
+        notify={notify}
+      />
+    )}
     {toast && (
       <div className="toast" role="status" aria-live="polite">
         <span className="toast-icon">

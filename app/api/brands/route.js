@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createBrand, listBrands } from '../../../lib/database';
+import { createBrand, listBrands, updateAllBrandsSettings } from '../../../lib/database';
 import { uploadImage } from '../../../lib/cloudinary';
 
 export const runtime = 'nodejs';
@@ -41,6 +41,19 @@ export async function POST(request) {
       settings: safeJson(formData.get('settings')),
     });
     return NextResponse.json({ brand }, { status: 201 });
+  } catch (error) {
+    return message(error);
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const body = await request.json();
+    if (body.action === 'apply_settings_all') {
+      const updatedCount = await updateAllBrandsSettings(body.settings || {});
+      return NextResponse.json({ success: true, count: updatedCount });
+    }
+    return NextResponse.json({ error: 'إجراء غير معروف.' }, { status: 400 });
   } catch (error) {
     return message(error);
   }

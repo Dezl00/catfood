@@ -67,6 +67,10 @@ const VariantInputSchema = z.object({
 const BrandSettingsSchema = z.object({
   footerText: z.string().max(250).optional(),
   currency: z.string().max(20).optional(),
+  headerType: z.enum(['text', 'image']).optional().describe('نوع الشعار في الهيدر: text أو image'),
+  headerTextAr: z.string().max(250).optional().describe('نص الهيدر العربي'),
+  headerTextEn: z.string().max(250).optional().describe('نص الهيدر الإنجليزي'),
+  headerLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار الهيدر'),
   visible: z
     .object({
       description: z.boolean().optional(),

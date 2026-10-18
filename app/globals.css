@@ -2289,6 +2289,86 @@ tr:last-child td {
   line-height: 1;
 }
 
+.cf-header-logo-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 595.28pt;
+  height: 107.20pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8pt 24pt;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cf-header-logo-img {
+  max-width: 520pt;
+  max-height: 88pt;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.header-type-toggle {
+  display: inline-flex;
+  background: #f4f4f5;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid #e4e4e7;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.header-type-btn {
+  padding: 7px 18px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-type-btn:hover {
+  color: #18181b;
+}
+
+.header-type-btn.active {
+  background: #ffffff;
+  color: #09090b;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.header-logo-preview-box {
+  background: #00497A;
+  border-radius: 10px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.header-logo-preview-box img {
+  max-height: 72px;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+
 .cf-dash-left {
   position: absolute;
   left: 198.50pt;
