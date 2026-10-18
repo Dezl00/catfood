@@ -44,6 +44,8 @@ async function getBrowser() {
       '--no-first-run',
       '--disable-extensions',
       '--allow-file-access-from-files',
+      '--disable-web-security',
+      '--allow-running-insecure-content',
     ];
     headless = true;
     const browserCandidates = [
@@ -77,13 +79,19 @@ export async function POST(request) {
     if (typeof html !== 'string' || typeof css !== 'string' || !html.trim()) {
       return NextResponse.json({ error: 'محتوى الكتالوج غير صالح للتصدير' }, { status: 400 });
     }
-    if (html.length > 8_000_000 || css.length > 2_000_000) {
+    if (html.length > 50_000_000 || css.length > 5_000_000) {
       return NextResponse.json({ error: 'حجم الكتالوج كبير جداً' }, { status: 413 });
     }
     
+    // Ensure no lazy loading in print HTML
+    const cleanHtml = html
+      .replace(/\sloading=["']lazy["']/gi, ' loading="eager"')
+      .replace(/\sdecoding=["']async["']/gi, ' decoding="sync"');
+
     const origin = new URL(request.url).origin;
     const browser = await getBrowser();
     page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 1800, deviceScaleFactor: 1 });
     
     // Fast standalone HTML page with 100% local fonts and exact styling
     const fullHtml = `<!DOCTYPE html>
@@ -144,32 +152,40 @@ export async function POST(request) {
   </style>
 </head>
 <body>
-  ${html}
+  ${cleanHtml}
 </body>
 </html>`;
     
     await page.goto(origin + '/fonts/local-fonts.css');
-    await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.setContent(fullHtml, { waitUntil: ['domcontentloaded'], timeout: 20000 });
     
-    // Quick check for fonts and images
+    // Ensure all fonts and images are completely loaded and decoded
     await page.evaluate(async () => {
       try {
-        if (document.fonts) {
-          await document.fonts.ready;
-        }
+        if (document.fonts) await document.fonts.ready;
       } catch {}
 
-      const pendingImages = Array.from(document.images).filter((img) => !img.complete);
-      if (pendingImages.length > 0) {
-        await Promise.all(
-          pendingImages.map((img) =>
-            Promise.race([
-              img.decode ? img.decode() : (img.complete ? Promise.resolve() : new Promise((resolve) => { img.onload = img.onerror = resolve; })),
-              new Promise((resolve) => setTimeout(resolve, 10000)),
-            ])
-          )
-        );
+      const imgs = Array.from(document.images);
+      for (const img of imgs) {
+        img.loading = 'eager';
+        img.decoding = 'sync';
       }
+
+      await Promise.all(
+        imgs.map((img) => {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+          return new Promise((resolve) => {
+            const finish = () => resolve();
+            img.addEventListener('load', finish, { once: true });
+            img.addEventListener('error', finish, { once: true });
+            if (img.decode) {
+              img.decode().then(finish).catch(finish);
+            }
+            if (img.complete && img.naturalWidth > 0) resolve();
+            setTimeout(finish, 12000);
+          });
+        })
+      );
     });
 
     const pdfBuffer = await page.pdf({
@@ -183,6 +199,7 @@ export async function POST(request) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
+        'Content-Length': String(pdfBuffer.length),
         'Content-Disposition': 'attachment; filename="catalog.pdf"',
       },
     });

@@ -267,7 +267,8 @@ function ProductSheet({ brand, product, variants: customVariants }) {
             alt={product.nameAr || product.nameEn || ''}
             className="cf-product-image-img"
             style={{ maxHeight: `${layout.cardHeight - 52}pt` }}
-            loading="lazy"
+            loading="eager"
+            decoding="sync"
           />
         ) : (
           <div className="cf-product-image-empty">
@@ -4139,16 +4140,41 @@ export default function Home() {
     if (!activeBrand?.products?.length) return notify('اختر براندًا يحتوي على صفحة واحدة على الأقل أولًا.', 'warning');
     setBusy(true);
     setExporting(true);
-    setExportProgress(1);
+    setExportProgress(5);
 
-    let currentPct = 1;
-    const progressTimer = setInterval(() => {
-      currentPct = Math.min(96, currentPct + (currentPct < 35 ? 6 : currentPct < 75 ? 3 : currentPct < 90 ? 2 : 1));
-      setExportProgress(currentPct);
-    }, 120);
+    let progressTimer = null;
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      // المرحلة 1: التحقق من تحميل جميع صور الكتالوج والتأكد من جاهزيتها (5% -> 35%)
+      const stageEl = pdfRef.current;
+      if (stageEl) {
+        const images = Array.from(stageEl.querySelectorAll('img'));
+        const totalImgs = images.length;
+        if (totalImgs > 0) {
+          let loaded = 0;
+          await Promise.all(
+            images.map(async (img) => {
+              if (!img.complete || img.naturalWidth === 0) {
+                await new Promise((resolve) => {
+                  const done = () => resolve();
+                  img.addEventListener('load', done, { once: true });
+                  img.addEventListener('error', done, { once: true });
+                  if (img.complete && img.naturalWidth > 0) resolve();
+                  setTimeout(done, 3000);
+                });
+              }
+              loaded++;
+              const p = 5 + Math.round((loaded / totalImgs) * 30);
+              setExportProgress(p);
+            })
+          );
+        }
+      }
+
+      setExportProgress(38);
+
+      // المرحلة 2: استخراج الأنماط وقواعد CSS للطباعة (38% -> 45%)
+      await new Promise((resolve) => setTimeout(resolve, 40));
       await new Promise((resolve) => requestAnimationFrame(resolve));
       let css = '';
       for (const style of Array.from(document.querySelectorAll('style'))) {
@@ -4161,17 +4187,61 @@ export default function Home() {
           }
         } catch {}
       }
-      const result = await fetch('/api/generate-pdf', {
+
+      setExportProgress(45);
+
+      // المرحلة 3: إرسال الطلب ومعالجة صفحات الـ PDF في الخادم (45% -> 85%)
+      const pageCount = (activeBrand?.products?.length || 1) + 2;
+      let serverProgress = 45;
+      progressTimer = setInterval(() => {
+        if (serverProgress < 85) {
+          serverProgress += 2;
+          setExportProgress(serverProgress);
+        }
+      }, Math.max(160, Math.round((pageCount * 260) / 20)));
+
+      const response = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: pdfRef.current.innerHTML, css }),
       });
-      if (!result.ok) {
-        const errorData = await result.json().catch(() => ({}));
+
+      clearInterval(progressTimer);
+      progressTimer = null;
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'تعذر إنشاء وتصدير ملف PDF.');
       }
-      const blob = await result.blob();
-      clearInterval(progressTimer);
+
+      setExportProgress(88);
+
+      // المرحلة 4: قراءة وتدفق حزم البيانات الفعلية لملف PDF (88% -> 99%)
+      const contentLengthHeader = response.headers.get('Content-Length');
+      const totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+      let blob;
+
+      if (response.body && totalBytes > 0) {
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedBytes = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          receivedBytes += value.length;
+          const streamPct = 88 + Math.round((receivedBytes / totalBytes) * 11);
+          setExportProgress(Math.min(99, streamPct));
+        }
+
+        blob = new Blob(chunks, { type: 'application/pdf' });
+      } else {
+        setExportProgress(95);
+        blob = await response.blob();
+      }
+
+      // المرحلة 5: الاكتمال 100% وتحميل الملف للجهاز
       setExportProgress(100);
 
       const url = URL.createObjectURL(blob);
@@ -4185,10 +4255,10 @@ export default function Home() {
       notify('تم تصدير وتحميل كتالوج ' + activeBrand.nameAr + ' بصيغة PDF بنجاح!');
       await new Promise((resolve) => setTimeout(resolve, 800));
     } catch (error) {
-      clearInterval(progressTimer);
+      if (progressTimer) clearInterval(progressTimer);
       notify(error.message, 'warning');
     } finally {
-      clearInterval(progressTimer);
+      if (progressTimer) clearInterval(progressTimer);
       setExportProgress(null);
       setBusy(false);
       setExporting(false);

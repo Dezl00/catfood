@@ -2508,32 +2508,34 @@ tr:last-child td {
   font-size: 12pt;
   color: #00497A;
   direction: rtl;
-  line-height: 1.25;
+  line-height: 1.38;
   white-space: normal;
   word-break: normal;
   overflow-wrap: break-word;
   z-index: 2;
-  padding: 0 6pt;
+  padding: 2pt 8pt;
   margin: 0;
-  height: 29.5pt;
+  height: auto;
+  min-height: 26pt;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .cf-name-ar.is-two-line {
-  height: 38pt;
-  line-height: 1.22;
+  min-height: 42pt;
+  line-height: 1.34;
 }
 
 .cf-name-ar span {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   line-height: inherit;
   text-align: center;
   max-width: 100%;
-  padding: 0;
+  padding: 2pt 0;
   margin: 0 auto;
 }
 
@@ -3481,9 +3483,10 @@ tr:last-child td {
   background: rgba(255, 255, 255, 0.88);
   border: 1px dashed rgba(0, 73, 122, 0.35);
   border-radius: 5pt;
-  padding: 3pt 8pt;
+  padding: 4pt 8pt;
   resize: none;
-  line-height: 1.25;
+  line-height: 1.36;
+  overflow: visible;
   transition: all 0.15s ease;
 }
 
