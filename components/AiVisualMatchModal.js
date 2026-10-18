@@ -12,11 +12,12 @@ export default function AiVisualMatchModal({
   notify,
 }) {
   const [phase, setPhase] = useState('setup'); // 'setup' | 'scanning' | 'results'
-  const [activeBrandId, setActiveBrandId] = useState(brand?.id || '');
+  const [activeBrandId, setActiveBrandId] = useState(brand?.id || brands[0]?.id || '');
+  const [currentBrand, setCurrentBrand] = useState(brand || null);
+  const [brandProducts, setBrandProducts] = useState(brand?.products || []);
+  const [loadingBrand, setLoadingBrand] = useState(false);
   const [targetFolder, setTargetFolder] = useState(selectedFolder || brand?.id || 'all');
   const [overwriteExisting, setOverwriteExisting] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [keyStats, setKeyStats] = useState({ totalKeys: 4, activeKey: 1 });
   const [progressText, setProgressText] = useState('');
   const [results, setResults] = useState({ matched: [], unmatched: [], allProducts: [] });
   const [selectedIndices, setSelectedIndices] = useState(new Set());
@@ -24,31 +25,65 @@ export default function AiVisualMatchModal({
   const [activeTab, setActiveTab] = useState('matched');
   const [saving, setSaving] = useState(false);
 
-  const currentBrand = brands.find((b) => b.id === activeBrandId) || brand;
-  const products = currentBrand?.products || [];
+  // Products are loaded directly from the database for the active brand
+  const products = brandProducts;
   const productsWithoutImages = products.filter((p) => !p.imageUrl || !p.imageUrl.trim());
 
+  // Load latest brand data & its products whenever modal opens or activeBrandId changes
   useEffect(() => {
     if (!isOpen) return;
     setPhase('setup');
     setCustomAssignments({});
-    // Fetch key status
-    fetch('/api/ai-match')
+
+    const targetId = activeBrandId || brand?.id || brands[0]?.id;
+    if (!targetId) return;
+
+    if (!activeBrandId) {
+      setActiveBrandId(targetId);
+    }
+
+    setLoadingBrand(true);
+    fetch(`/api/brands/${targetId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.totalKeys) {
-          setKeyStats({ totalKeys: data.totalKeys, activeKey: data.activeKey || 1 });
+        if (data.brand) {
+          setCurrentBrand(data.brand);
+          setBrandProducts(data.brand.products || []);
         }
       })
-      .catch(() => {})
-      .finally(() => setLoadingStats(false));
-  }, [isOpen]);
+      .catch((err) => {
+        console.error('Failed to load brand products:', err);
+      })
+      .finally(() => {
+        setLoadingBrand(false);
+      });
+  }, [isOpen, activeBrandId, brand?.id, brands]);
 
   if (!isOpen) return null;
+
+  const handleBrandChange = (newId) => {
+    setActiveBrandId(newId);
+    setLoadingBrand(true);
+    fetch(`/api/brands/${newId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.brand) {
+          setCurrentBrand(data.brand);
+          setBrandProducts(data.brand.products || []);
+        }
+      })
+      .catch((err) => console.error(err))
+      .finally(() => setLoadingBrand(false));
+  };
 
   const handleStartScan = async () => {
     if (!activeBrandId) {
       notify('يرجى اختيار براند أولاً.', 'warning');
+      return;
+    }
+
+    if (!products.length) {
+      notify('هذا البراند لا يحتوي على أي منتجات للمطابقة معها.', 'warning');
       return;
     }
 
@@ -215,33 +250,19 @@ export default function AiVisualMatchModal({
             {/* 1. SETUP PHASE */}
             {phase === 'setup' && (
               <>
-                <div className="ai-match-info-card">
-                  <div className="ai-match-info-header">
-                    <strong style={{ fontSize: 13.5, color: '#4c1d95' }}>
-                      ⚡ نظام المطابقة التلقائية متعدد المفاتيح (Multi-Key Rotation)
-                    </strong>
-                    <span className="ai-match-keys-badge">
-                      <span>✓ {keyStats.totalKeys} مفاتيح Gemini جاهزة</span>
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: 12, color: '#6b21a8', lineHeight: 1.5 }}>
-                    يقوم النظام بقراءة النصوص والنكهات والتصميم والأوزان المطبوعة على عبوة المنتج داخل الصورة ومقارنتها فوراً ببيانات جدولك. إذا وصل أي مفتاح للحد الأقصى، يتم التبديل تلقائياً للمفتاح التالي فوراً.
-                  </p>
-                </div>
-
                 <div className="ai-match-stats-row">
                   <div className="ai-stat-box">
                     <span>البراند النشط</span>
-                    <strong>{currentBrand?.nameAr || 'غير محدد'}</strong>
+                    <strong>{loadingBrand ? 'جاري التحميل…' : (currentBrand?.nameAr || 'غير محدد')}</strong>
                   </div>
                   <div className="ai-stat-box">
                     <span>إجمالي منتجات البراند</span>
-                    <strong>{products.length} منتج</strong>
+                    <strong>{loadingBrand ? '…' : `${products.length} منتج`}</strong>
                   </div>
                   <div className="ai-stat-box">
                     <span>منتجات بدون صور</span>
                     <strong style={{ color: productsWithoutImages.length ? '#e11d48' : '#15803d' }}>
-                      {productsWithoutImages.length} منتج
+                      {loadingBrand ? '…' : `${productsWithoutImages.length} منتج`}
                     </strong>
                   </div>
                 </div>
@@ -277,7 +298,7 @@ export default function AiVisualMatchModal({
                     </label>
                     <select
                       value={activeBrandId}
-                      onChange={(e) => setActiveBrandId(e.target.value)}
+                      onChange={(e) => handleBrandChange(e.target.value)}
                       style={{
                         padding: '8px 12px',
                         borderRadius: 8,
@@ -287,7 +308,7 @@ export default function AiVisualMatchModal({
                     >
                       {brands.map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.nameAr} ({b.products?.length || 0} منتج)
+                          {b.nameAr}
                         </option>
                       ))}
                     </select>
@@ -306,9 +327,6 @@ export default function AiVisualMatchModal({
                 <p style={{ margin: 0, fontSize: 13, color: '#64748b', maxWidth: 440 }}>
                   {progressText}
                 </p>
-                <div style={{ fontSize: 12, color: '#9333ea', background: '#faf5ff', padding: '6px 14px', borderRadius: 9999 }}>
-                  المفتاح النشط حالياً: #{keyStats.activeKey} (التبديل التلقائي مفعّل عند الحاجة)
-                </div>
               </div>
             )}
 
@@ -496,7 +514,7 @@ export default function AiVisualMatchModal({
                 type="button"
                 className="button button-ai-match"
                 onClick={handleStartScan}
-                disabled={!products.length}
+                disabled={loadingBrand || !products.length}
               >
                 <span>⚡ بدء الفحص والمطابقة البصرية</span>
               </button>
