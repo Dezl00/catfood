@@ -261,7 +261,10 @@ function ProductSheet({ brand, product, variants: customVariants }) {
 
       {/* Product Names */}
       {product.nameAr && (
-        <div className="cf-name-ar" style={{ top: `${layout.nameArTop}pt` }}>
+        <div
+          className={['cf-name-ar', layout.isTwoLineNameAr && 'is-two-line'].filter(Boolean).join(' ')}
+          style={{ top: `${layout.nameArTop}pt` }}
+        >
           <span>{product.nameAr.trim()}</span>
         </div>
       )}

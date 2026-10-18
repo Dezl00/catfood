@@ -173,6 +173,15 @@ describe('computeProductLayout', () => {
     assert.ok(layout.descHeight > 52.0, `descHeight ${layout.descHeight} should expand above base 52.0 for long text`);
     assert.equal(layout.descHeight, layout.enDescHeight, 'English box must link to the height of the taller Arabic box');
   });
+
+  it('detects long Arabic product title and sets isTwoLineNameAr with adjusted nameArTop', () => {
+    const product = {
+      nameAr: 'فيليسيا هيربول مكافآت مقرمشة للقطط بالدجاج والتوت البري والحليب 100 جم',
+    };
+    const layout = computeProductLayout(product, {}, []);
+    assert.equal(layout.isTwoLineNameAr, true);
+    assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 36.5) < 0.01);
+  });
 });
 
 describe('paginateProductVariants', () => {

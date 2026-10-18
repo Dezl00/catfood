@@ -2415,7 +2415,7 @@ tr:last-child td {
   justify-content: center;
   padding: 0 10pt;
   width: max-content;
-  max-width: 480pt;
+  max-width: 420pt;
   color: #FFF0DC;
   font-family: 'Tajawal', sans-serif;
   font-weight: 700;
@@ -2432,7 +2432,7 @@ tr:last-child td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 460pt;
+  max-width: 400pt;
   text-align: center;
 }
 
@@ -2441,8 +2441,9 @@ tr:last-child td {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 520pt;
+  max-width: 380pt;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -2451,23 +2452,33 @@ tr:last-child td {
   font-size: 12pt;
   color: #00497A;
   direction: rtl;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
   z-index: 2;
-  padding: 0;
+  padding: 0 6pt;
   margin: 0;
   height: 29.5pt;
-  overflow: visible;
   box-sizing: border-box;
 }
 
+.cf-name-ar.is-two-line {
+  height: 38pt;
+  line-height: 1.22;
+}
+
 .cf-name-ar span {
-  overflow: visible;
-  line-height: 1;
-  display: inline-block;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: inherit;
+  text-align: center;
+  max-width: 100%;
   padding: 0;
   margin: 0 auto;
-  text-align: center;
 }
 
 .cf-desc-box {
