@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createProducts, deleteProducts, getBrand, reorderProducts } from '../../../../../lib/database';
+import { bulkUpdateProducts, createProducts, deleteProducts, getBrand, reorderProducts } from '../../../../../lib/database';
 import { deleteImage } from '../../../../../lib/cloudinary';
 
 export const runtime = 'nodejs';
@@ -19,6 +19,21 @@ export async function POST(request, context) {
     if (!items.length) return NextResponse.json({ error: 'لا توجد منتجات للحفظ.' }, { status: 400 });
     const products = await createProducts(brandId, items);
     return NextResponse.json({ products }, { status: 201 });
+  } catch (error) {
+    return message(error);
+  }
+}
+
+export async function PATCH(request, context) {
+  try {
+    const { brandId } = await context.params;
+    const brand = await getBrand(brandId, false);
+    if (!brand) return NextResponse.json({ error: 'البراند غير موجود.' }, { status: 404 });
+    const body = await request.json();
+    const items = Array.isArray(body.products) ? body.products : [];
+    if (!items.length) return NextResponse.json({ error: 'لا توجد منتجات للتحديث.' }, { status: 400 });
+    const updated = await bulkUpdateProducts(brandId, items);
+    return NextResponse.json({ products: updated, count: updated.length });
   } catch (error) {
     return message(error);
   }

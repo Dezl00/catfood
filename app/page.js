@@ -1089,6 +1089,738 @@ function CatalogPreviewModal({
   );
 }
 
+function EditableProductSheet({
+  brand,
+  product,
+  variants: customVariants,
+  onUpdateField,
+  onUpdateVariantCell,
+  onOpenMediaPicker,
+  onUploadImageFile,
+  isUploading,
+  isDragOver,
+  onSetDragOver,
+}) {
+  const brandAr = 'كات فوود';
+  const brandEn = 'CAT FOOD';
+  const settings = mergeSettings(brand?.settings);
+  const variants = customVariants || (product.variants?.length ? product.variants : [emptyVariant()]);
+  const fileInputRef = useRef(null);
+
+  const layout = computeProductLayout(product, settings, variants);
+  const columns = getTableColumns(settings.visible, variants);
+
+  return (
+    <article className="catfood-page catfood-page--editable" data-page="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
+      {/* Header Band */}
+      <div className="cf-header-band" />
+      <div className="cf-header-ar">كات فوود</div>
+      <div className="cf-header-en">CAT FOOD</div>
+
+      {/* Image Card with Drag & Drop and Floating Actions */}
+      <div
+        className={['cf-image-card', isDragOver && 'cf-image-card--drag-over'].filter(Boolean).join(' ')}
+        style={{ height: `${layout.cardHeight}pt` }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onSetDragOver(product.id, true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onSetDragOver(product.id, false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onSetDragOver(product.id, false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) onUploadImageFile(product.id, file);
+        }}
+      >
+        {/* Floating Actions on Image Card */}
+        <div className="cf-image-floating-bar" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="cf-floating-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="رفع صورة جديدة من جهازك"
+          >
+            <Icon name="upload" size={13} />
+            <span>رفع</span>
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onUploadImageFile(product.id, file);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            className="cf-floating-btn"
+            onClick={() => onOpenMediaPicker(product.id)}
+            title="اختيار صورة من معرض الصور"
+          >
+            <Icon name="image" size={13} />
+            <span>المعرض</span>
+          </button>
+          {product.imageUrl && (
+            <button
+              type="button"
+              className="cf-floating-btn cf-floating-btn--danger"
+              onClick={() => onUpdateField(product.id, 'imageUrl', '')}
+              title="إزالة صورة المنتج"
+            >
+              <Icon name="trash" size={13} />
+            </button>
+          )}
+        </div>
+
+        {isUploading ? (
+          <div className="cf-image-uploading-overlay">
+            <span className="cf-image-spinner" />
+            <span>جاري رفع الصورة...</span>
+          </div>
+        ) : isDragOver ? (
+          <div className="cf-image-drop-overlay">
+            <Icon name="upload" size={32} />
+            <span>أفلت الصورة هنا لربطها فوراً بالصفحة</span>
+          </div>
+        ) : product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.nameAr || product.nameEn || ''}
+            className="cf-product-image-img"
+            style={{ maxHeight: `${layout.cardHeight - 52}pt` }}
+          />
+        ) : (
+          <div
+            className="cf-product-image-empty cf-product-image-empty--clickable"
+            onClick={() => fileInputRef.current?.click()}
+            title="انقر لرفع صورة أو اسحب وأفلت صورة هنا"
+          >
+            <Icon name="image" size={42} />
+            <span>اسحب وأفلت صورة هنا أو انقر للرفع</span>
+          </div>
+        )}
+      </div>
+
+      {/* Product Names: Editable In-Place */}
+      <div
+        className={['cf-name-ar', layout.isTwoLineNameAr && 'is-two-line', 'cf-name-ar--editable'].filter(Boolean).join(' ')}
+        style={{ top: `${layout.nameArTop}pt` }}
+      >
+        <textarea
+          className="cf-editable-input cf-editable-name-ar"
+          value={product.nameAr || ''}
+          onChange={(e) => onUpdateField(product.id, 'nameAr', e.target.value)}
+          placeholder="اسم المنتج بالعربي..."
+          rows={layout.isTwoLineNameAr ? 2 : 1}
+          title="تعديل اسم المنتج بالعربي"
+        />
+      </div>
+
+      <div className="cf-name-pill cf-name-pill--editable" style={{ top: `${layout.pillTop}pt` }}>
+        <input
+          type="text"
+          className="cf-editable-input cf-editable-name-en"
+          value={product.nameEn || ''}
+          onChange={(e) => onUpdateField(product.id, 'nameEn', e.target.value)}
+          placeholder="Product Name EN..."
+          title="تعديل اسم المنتج بالإنجليزي"
+        />
+      </div>
+
+      {/* Descriptions: Editable In-Place */}
+      {layout.hasDescriptions && (
+        <>
+          {layout.hasDescAr && layout.hasDescEn ? (
+            <>
+              {/* Arabic Description on Right */}
+              <div
+                className="cf-desc-box cf-desc-box--editable"
+                style={{
+                  left: '299.00pt',
+                  top: `${layout.descTop}pt`,
+                  width: '250.00pt',
+                  height: `${layout.descHeight}pt`,
+                  borderRadius: '36.9pt',
+                }}
+              >
+                <textarea
+                  className="cf-editable-desc cf-editable-desc-ar"
+                  value={product.descriptionAr || ''}
+                  onChange={(e) => onUpdateField(product.id, 'descriptionAr', e.target.value)}
+                  placeholder="الوصف العربي..."
+                  title="تعديل الوصف العربي"
+                />
+              </div>
+
+              {/* English Description on Left */}
+              <div
+                className="cf-desc-box cf-desc-box--editable"
+                style={{
+                  left: '32.50pt',
+                  top: `${layout.descTop}pt`,
+                  width: '250.00pt',
+                  height: `${layout.descHeight}pt`,
+                  borderRadius: '36.9pt',
+                }}
+              >
+                <textarea
+                  className="cf-editable-desc cf-editable-desc-en"
+                  value={product.descriptionEn || ''}
+                  onChange={(e) => onUpdateField(product.id, 'descriptionEn', e.target.value)}
+                  placeholder="English description..."
+                  title="تعديل الوصف الإنجليزي"
+                />
+              </div>
+            </>
+          ) : layout.hasDescAr ? (
+            <div
+              className="cf-desc-box cf-desc-box--editable"
+              style={{
+                left: '32.50pt',
+                top: `${layout.descTop}pt`,
+                width: '516.50pt',
+                height: `${layout.descHeight}pt`,
+                borderRadius: '36.9pt',
+              }}
+            >
+              <textarea
+                className="cf-editable-desc cf-editable-desc-ar"
+                value={product.descriptionAr || ''}
+                onChange={(e) => onUpdateField(product.id, 'descriptionAr', e.target.value)}
+                placeholder="الوصف العربي..."
+                title="تعديل الوصف العربي"
+              />
+            </div>
+          ) : (
+            <div
+              className="cf-desc-box cf-desc-box--editable"
+              style={{
+                left: '32.50pt',
+                top: `${layout.descTop}pt`,
+                width: '516.50pt',
+                height: `${layout.descHeight}pt`,
+                borderRadius: '36.9pt',
+              }}
+            >
+              <textarea
+                className="cf-editable-desc cf-editable-desc-en"
+                value={product.descriptionEn || ''}
+                onChange={(e) => onUpdateField(product.id, 'descriptionEn', e.target.value)}
+                placeholder="English description..."
+                title="تعديل الوصف الإنجليزي"
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Variant Table Header */}
+      {columns.map((col) => (
+        <div
+          key={col.key}
+          className="cf-th-cell"
+          style={{
+            left: `${col.left}pt`,
+            top: `${layout.tableTop}pt`,
+            width: `${col.width}pt`,
+          }}
+        >
+          {col.title}
+        </div>
+      ))}
+
+      {/* Variant Table Body Rows */}
+      {variants.map((variant, vIdx) => {
+        const rowTop = layout.tableTop + 23.80 + 2.90 + vIdx * 28.00;
+        return (
+          <div key={variant.id || vIdx}>
+            {columns.map((col) => (
+              <div
+                key={col.key}
+                className="cf-body-cell cf-body-cell--editable"
+                style={{
+                  left: `${col.left}pt`,
+                  top: `${rowTop}pt`,
+                  width: `${col.width}pt`,
+                  direction: col.align || 'ltr',
+                }}
+              >
+                <input
+                  type="text"
+                  className="cf-editable-table-input"
+                  value={
+                    col.key === 'weight'
+                      ? variant.weight || ''
+                      : col.key === 'carton'
+                      ? variant.qtyPerCarton || ''
+                      : col.key === 'price'
+                      ? variant.pricePerPiece || variant.price || ''
+                      : col.key === 'cartonPrice'
+                      ? variant.pricePerCarton || ''
+                      : col.key === 'barcode'
+                      ? variant.barcode || product.barcode || ''
+                      : ''
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const field =
+                      col.key === 'weight'
+                        ? 'weight'
+                        : col.key === 'carton'
+                        ? 'qtyPerCarton'
+                        : col.key === 'price'
+                        ? 'pricePerPiece'
+                        : col.key === 'cartonPrice'
+                        ? 'pricePerCarton'
+                        : col.key === 'barcode'
+                        ? 'barcode'
+                        : null;
+                    if (field) {
+                      onUpdateVariantCell(product.id, variant.id, field, val);
+                    }
+                  }}
+                  placeholder="—"
+                  title={`تعديل ${col.title}`}
+                />
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      {/* Footer */}
+      <div className="cf-product-footer-line" />
+      <div className="cf-tax-pill">
+        {settings.footerText || 'السعر غير شامل الضريبة'}
+      </div>
+    </article>
+  );
+}
+
+function BulkEditModal({
+  brand,
+  products = [],
+  onClose,
+  onSave,
+  busy,
+  windowDimensions,
+  isMobile,
+  brands = [],
+  notify,
+}) {
+  const [draftProducts, setDraftProducts] = useState(() =>
+    products.map((p) => ({
+      ...p,
+      variants: Array.isArray(p.variants) && p.variants.length
+        ? p.variants.map((v) => ({ ...v }))
+        : [emptyVariant()],
+    }))
+  );
+
+  const initialMapRef = useRef(
+    new Map(products.map((p) => [p.id, JSON.stringify(p)]))
+  );
+
+  const [activePageIndex, setActivePageIndex] = useState(0);
+  const [activeMediaPickerProductId, setActiveMediaPickerProductId] = useState(null);
+  const [uploadingProductId, setUploadingProductId] = useState(null);
+  const [dragOverProductId, setDragOverProductId] = useState(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const mainScrollRef = useRef(null);
+  const thumbnailsRef = useRef(null);
+  const dialogRef = useRef(null);
+
+  // Identify which products have been modified
+  const modifiedProductIds = useMemo(() => {
+    const set = new Set();
+    draftProducts.forEach((p) => {
+      const orig = initialMapRef.current.get(p.id);
+      if (orig && JSON.stringify(p) !== orig) {
+        set.add(p.id);
+      }
+    });
+    return set;
+  }, [draftProducts]);
+
+  const modifiedCount = modifiedProductIds.size;
+
+  // Scale calculations (exact full viewport fit)
+  const desktopAvailableHeight = Math.max(340, windowDimensions.height - 170);
+  const desktopFitHeightScale = Number((desktopAvailableHeight / 1122.52).toFixed(3));
+  const desktopCatalogAvailableWidth = Math.max(340, windowDimensions.width - 250);
+  const desktopCatalogFitWidthScale = Number((desktopCatalogAvailableWidth / 793.7).toFixed(3));
+  const desktopFullFitScale = Math.min(desktopFitHeightScale, desktopCatalogFitWidthScale, 1.0);
+
+  const mobileAvailableWidth = Math.max(280, windowDimensions.width - 24);
+  const mobileScale = Math.min(1.0, Math.max(0.20, Number((mobileAvailableWidth / 793.7).toFixed(3))));
+  const effectiveScale = isMobile ? mobileScale : desktopFullFitScale;
+
+  const scrollToPage = useCallback((index) => {
+    if (index < 0 || index >= draftProducts.length) return;
+    setActivePageIndex(index);
+    const targetEl = document.getElementById(`bulk-edit-page-${index}`);
+    if (targetEl && mainScrollRef.current) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const thumbEl = document.getElementById(`bulk-thumb-${index}`);
+    if (thumbEl && thumbnailsRef.current) {
+      thumbEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [draftProducts.length]);
+
+  const updateProductField = useCallback((productId, field, value) => {
+    setDraftProducts((curr) =>
+      curr.map((p) => (p.id === productId ? { ...p, [field]: value } : p))
+    );
+  }, []);
+
+  const updateVariantCell = useCallback((productId, variantId, field, value) => {
+    setDraftProducts((curr) =>
+      curr.map((p) => {
+        if (p.id !== productId) return p;
+        const variants = (p.variants || []).map((v) =>
+          v.id === variantId ? { ...v, [field]: value } : v
+        );
+        return { ...p, variants };
+      })
+    );
+  }, []);
+
+  const handleUploadImageFile = async (productId, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      notify('يرجى اختيار ملف صورة صالح.', 'warning');
+      return;
+    }
+    setUploadingProductId(productId);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('folder', brand.id + '/products');
+      formData.set('brandId', brand.id);
+      const result = await request('/api/upload', { method: 'POST', body: formData });
+      updateProductField(productId, 'imageUrl', result.url);
+      notify('تم رفع الصورة وربطها بالصفحة بنجاح!');
+    } catch (err) {
+      notify(err.message || 'فشل رفع الصورة.', 'warning');
+    } finally {
+      setUploadingProductId(null);
+    }
+  };
+
+  const handleSetDragOver = useCallback((productId, isOver) => {
+    setDragOverProductId(isOver ? productId : null);
+  }, []);
+
+  const handleRequestClose = () => {
+    if (modifiedCount > 0) {
+      setConfirmDiscard(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (saving || busy) return;
+    if (modifiedCount === 0) {
+      notify('لم يتم إجراء أي تعديلات جديدة للحفظ.', 'info');
+      onClose();
+      return;
+    }
+    setSaving(true);
+    try {
+      const modifiedList = draftProducts.filter((p) => modifiedProductIds.has(p.id));
+      await onSave(modifiedList);
+    } catch (error) {
+      notify(error.message || 'فشل حفظ التعديلات الجماعية.', 'warning');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Keyboard shortcut Ctrl+S to save, Esc to close
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveAll();
+      } else if (e.key === 'Escape') {
+        if (!activeMediaPickerProductId && !confirmDiscard) {
+          e.preventDefault();
+          handleRequestClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeMediaPickerProductId, confirmDiscard, modifiedCount, draftProducts, modifiedProductIds]);
+
+  const currentPage = draftProducts[activePageIndex] || draftProducts[0];
+
+  return (
+    <>
+      <div
+        className="catalog-preview-fullscreen-backdrop"
+        role="presentation"
+        onClick={(e) => {
+          if (dialogRef.current && !dialogRef.current.contains(e.target)) {
+            handleRequestClose();
+          }
+        }}
+      >
+        <section
+          ref={dialogRef}
+          className="catalog-preview-fullscreen-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label={'تعديل جماعي: ' + brand.nameAr}
+        >
+          {/* Top Bar */}
+          <header className="preview-fullscreen-topbar">
+            <div className="preview-fullscreen-topbar-meta">
+              <BrandBadge brand={brand} />
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2>تعديل جماعي: {brand.nameAr}</h2>
+                  {modifiedCount > 0 ? (
+                    <span className="bulk-edit-modified-badge">
+                      <span className="bulk-thumb-dot" />
+                      {modifiedCount} صفحة معدلة (غير محفوظة)
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '600' }}>
+                      ✓ جميع الصفحات متزامنة ومحفوظة
+                    </span>
+                  )}
+                </div>
+                <p>
+                  إجمالي {draftProducts.length} صفحة جاهزة للتحرير المباشر · اسحب وأفلت الصور مباشرة في أي صفحة
+                </p>
+              </div>
+            </div>
+
+            <div className="preview-fullscreen-topbar-actions">
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={handleRequestClose}
+                disabled={saving || busy}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={handleSaveAll}
+                disabled={saving || busy || modifiedCount === 0}
+                title="حفظ جميع التعديلات في الكتالوج (Ctrl + S)"
+              >
+                <Icon name="check" size={16} />
+                <span>
+                  {saving || busy
+                    ? 'جاري الحفظ...'
+                    : modifiedCount > 0
+                    ? `حفظ التعديلات (${modifiedCount})`
+                    : 'حفظ التغييرات'}
+                </span>
+              </button>
+              <button
+                className="icon-button"
+                onClick={handleRequestClose}
+                aria-label="إغلاق التعديل الجماعي"
+                title="إغلاق (Esc)"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+          </header>
+
+          <div className="preview-fullscreen-workspace">
+            {/* Thumbnails Sidebar */}
+            <aside className="preview-thumbnails-rail" ref={thumbnailsRef}>
+              <div className="preview-thumbnails-header">
+                <Icon name="grid" size={14} />
+                <span>فهرس الصفحات ({draftProducts.length})</span>
+              </div>
+              <div className="preview-thumbnails-list">
+                {draftProducts.map((prod, idx) => {
+                  const isModified = modifiedProductIds.has(prod.id);
+                  const isActive = idx === activePageIndex;
+                  return (
+                    <button
+                      key={prod.id || idx}
+                      id={`bulk-thumb-${idx}`}
+                      type="button"
+                      className={['preview-thumb-btn', isActive && 'is-active'].filter(Boolean).join(' ')}
+                      onClick={() => scrollToPage(idx)}
+                      title={`الانتقال إلى صفحة ${idx + 1}`}
+                    >
+                      <div className="preview-thumb-card">
+                        <span className="preview-thumb-page-num">{idx + 1}</span>
+                        {isModified && <span className="bulk-edit-thumb-modified" title="تعديلات غير محفوظة" />}
+                        <div className="preview-thumb-product">
+                          {prod.imageUrl ? (
+                            <img src={prod.imageUrl} alt={prod.nameAr || ''} />
+                          ) : (
+                            <Icon name="image" size={20} />
+                          )}
+                        </div>
+                      </div>
+                      <div className="preview-thumb-info">
+                        <strong>صفحة {idx + 1}</strong>
+                        <span>{prod.nameAr || prod.nameEn || 'صفحة بدون اسم'}</span>
+                        {isModified && (
+                          <span style={{ color: '#b45309', fontSize: '9.5px', fontWeight: '700' }}>
+                            • تعديلات غير محفوظة
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            {/* Main Canvas Scroll Area */}
+            <div className="preview-main-canvas-wrap">
+              <main className="preview-main-scroll-area" ref={mainScrollRef}>
+                <div className="preview-pages-column">
+                  {draftProducts.map((prod, idx) => {
+                    const isModified = modifiedProductIds.has(prod.id);
+                    return (
+                      <div
+                        key={prod.id}
+                        id={`bulk-edit-page-${idx}`}
+                        className="catalog-preview-page-wrap"
+                      >
+                        <div className="catalog-preview-page-header">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <strong>صفحة {idx + 1} من {draftProducts.length}</strong>
+                            {isModified && (
+                              <span className="bulk-page-modified-tag">
+                                <span className="bulk-thumb-dot" />
+                                معدلة
+                              </span>
+                            )}
+                          </div>
+                          <span>{prod.nameAr || prod.nameEn || 'صفحة منتج'}</span>
+                        </div>
+                        <ScaledPageWrapper scale={effectiveScale}>
+                          <EditableProductSheet
+                            brand={brand}
+                            product={prod}
+                            variants={prod.variants}
+                            onUpdateField={updateProductField}
+                            onUpdateVariantCell={updateVariantCell}
+                            onOpenMediaPicker={(pId) => setActiveMediaPickerProductId(pId)}
+                            onUploadImageFile={handleUploadImageFile}
+                            isUploading={uploadingProductId === prod.id}
+                            isDragOver={dragOverProductId === prod.id}
+                            onSetDragOver={handleSetDragOver}
+                          />
+                        </ScaledPageWrapper>
+                      </div>
+                    );
+                  })}
+                </div>
+              </main>
+
+              {/* Bottom Scrubber Bar */}
+              <footer className="preview-bottom-scrubber">
+                <button
+                  type="button"
+                  className="scrubber-btn"
+                  disabled={activePageIndex <= 0}
+                  onClick={() => scrollToPage(activePageIndex - 1)}
+                  title="الصفحة السابقة"
+                >
+                  <Icon name="arrow" size={16} style={{ transform: 'rotate(180deg)' }} />
+                  <span>السابقة</span>
+                </button>
+
+                <div className="scrubber-track-wrap">
+                  <input
+                    type="range"
+                    min={1}
+                    max={draftProducts.length}
+                    value={activePageIndex + 1}
+                    onChange={(e) => scrollToPage(Number(e.target.value) - 1)}
+                    className="preview-scrubber-slider"
+                    aria-label="سحب للتنقل بين الصفحات"
+                  />
+                </div>
+
+                <span className="scrubber-page-indicator">
+                  صفحة <b>{activePageIndex + 1}</b> من <b>{draftProducts.length}</b>
+                  <span className="scrubber-page-title">
+                    ({currentPage?.nameAr || currentPage?.nameEn || ''})
+                  </span>
+                </span>
+
+                <button
+                  type="button"
+                  className="scrubber-btn"
+                  disabled={activePageIndex >= draftProducts.length - 1}
+                  onClick={() => scrollToPage(activePageIndex + 1)}
+                  title="الصفحة التالية"
+                >
+                  <span>التالية</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </footer>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Media Picker Modal if user clicked 'المعرض' on any card */}
+      {activeMediaPickerProductId && (
+        <MediaPickerModal
+          brands={brands}
+          activeBrandId={brand?.id}
+          onClose={() => setActiveMediaPickerProductId(null)}
+          onSelect={(media) => {
+            updateProductField(activeMediaPickerProductId, 'imageUrl', media.url);
+            setActiveMediaPickerProductId(null);
+            notify('تم ربط الصورة من المعرض بالصفحة بنجاح!');
+          }}
+          notify={notify}
+        />
+      )}
+
+      {/* Confirm Discard Modal */}
+      {confirmDiscard && (
+        <ConfirmModal
+          config={{
+            title: 'تجاهل التعديلات غير المحفوظة؟',
+            message: `لديك تعديلات غير محفوظة على ${modifiedCount} صفحة. إذا قمت بالخروج الآن، فستفقد كل هذه التعديلات.`,
+            confirmText: 'تجاهل والخروج',
+            cancelText: 'العودة للتعديل',
+            tone: 'danger',
+            onConfirm: () => {
+              setConfirmDiscard(false);
+              onClose();
+            },
+          }}
+          onClose={() => setConfirmDiscard(false)}
+        />
+      )}
+    </>
+  );
+}
+
 function ConfirmModal({ config, onClose }) {
   if (!config) return null;
   const { title, message, confirmText = 'تأكيد الحذف', cancelText = 'إلغاء', tone = 'danger', onConfirm } = config;
@@ -2328,6 +3060,7 @@ export default function Home() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [previewModal, setPreviewModal] = useState(null);
   const [catalogPreviewModal, setCatalogPreviewModal] = useState(false);
+  const [bulkEditModal, setBulkEditModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
   const [activeDragId, setActiveDragId] = useState(null);
@@ -2607,6 +3340,27 @@ export default function Home() {
       await refresh(activeBrand.id);
     } catch (error) { notify(error.message, 'warning'); }
   };
+
+  const handleBulkSave = async (modifiedProducts) => {
+    if (!modifiedProducts || !modifiedProducts.length || !activeBrand) return;
+    setBusy(true);
+    try {
+      const result = await request(`/api/brands/${activeBrand.id}/products`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: modifiedProducts }),
+      });
+      await refresh(activeBrand.id);
+      notify(`تم حفظ التعديلات الجماعية على ${result.count || modifiedProducts.length} صفحة بنجاح!`);
+      setBulkEditModal(false);
+    } catch (error) {
+      notify(error.message || 'فشل حفظ التعديلات الجماعية.', 'warning');
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const duplicateProduct = async (product) => {
     if (!activeBrand) return;
     try {
@@ -3239,6 +3993,15 @@ export default function Home() {
                     <button
                       type="button"
                       className="button button-ghost action-chip"
+                      onClick={() => setBulkEditModal(true)}
+                      disabled={!products.length}
+                      title="تعديل جماعي لجميع صفحات الكتالوج مباشرة"
+                    >
+                      <Icon name="edit" size={16} /> <span>تعديل جماعي</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-ghost action-chip"
                       onClick={() => go('import')}
                     >
                       <Icon name="upload" size={16} /> <span>استيراد</span>
@@ -3637,6 +4400,19 @@ export default function Home() {
         busy={busy}
         windowDimensions={windowDimensions}
         isMobile={isMobile}
+      />
+    )}
+    {bulkEditModal && activeBrand && (
+      <BulkEditModal
+        brand={activeBrand}
+        products={products}
+        onClose={() => setBulkEditModal(false)}
+        onSave={handleBulkSave}
+        busy={busy}
+        windowDimensions={windowDimensions}
+        isMobile={isMobile}
+        brands={brands}
+        notify={notify}
       />
     )}
     <nav className="mobile-bottom-bar" aria-label="شريط التنقل السريع">
