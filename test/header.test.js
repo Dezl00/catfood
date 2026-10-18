@@ -10,6 +10,11 @@ const BrandSettingsSchema = z.object({
   headerTextEn: z.string().max(250).optional().describe('نص الهيدر الإنجليزي'),
   headerLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار الهيدر'),
   headerLogoHeight: z.number().min(20).max(100).optional().describe('ارتفاع الشعار في الهيدر بنقاط الطباعة (pt) بين 20 و 100'),
+  closingType: z.enum(['text', 'image']).optional().describe('نوع الشعار في صفحة الختام: text أو image'),
+  closingTextAr: z.string().max(250).optional().describe('نص صفحة الختام العربي'),
+  closingTextEn: z.string().max(250).optional().describe('نص صفحة الختام الإنجليزي'),
+  closingLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار صفحة الختام'),
+  closingLogoHeight: z.number().min(30).max(220).optional().describe('ارتفاع شعار صفحة الختام بنقاط الطباعة (pt) بين 30 و 220'),
   visible: z
     .object({
       description: z.boolean().optional(),
@@ -81,6 +86,60 @@ describe('Catalog Header Branding & Settings', () => {
     assert.throws(() => {
       BrandSettingsSchema.parse({
         headerLogoHeight: 15,
+      });
+    }, (err) => err instanceof z.ZodError);
+  });
+});
+
+describe('Catalog Closing Sheet Branding & Settings', () => {
+  it('validates text-type closing sheet with custom Arabic and English text', () => {
+    const parsed = BrandSettingsSchema.parse({
+      closingType: 'text',
+      closingTextAr: 'شكراً لزيارتكم',
+      closingTextEn: 'THANK YOU FOR VISITING',
+    });
+    assert.equal(parsed.closingType, 'text');
+    assert.equal(parsed.closingTextAr, 'شكراً لزيارتكم');
+    assert.equal(parsed.closingTextEn, 'THANK YOU FOR VISITING');
+  });
+
+  it('validates image-type closing sheet with Cloudinary logo URL', () => {
+    const parsed = BrandSettingsSchema.parse({
+      closingType: 'image',
+      closingLogoUrl: 'https://res.cloudinary.com/catfood/image/upload/v12345/closing-logo.png',
+    });
+    assert.equal(parsed.closingType, 'image');
+    assert.equal(parsed.closingLogoUrl, 'https://res.cloudinary.com/catfood/image/upload/v12345/closing-logo.png');
+  });
+
+  it('validates custom closingLogoHeight within valid bounds (30 to 220 pt)', () => {
+    const parsed = BrandSettingsSchema.parse({
+      closingType: 'image',
+      closingLogoUrl: 'https://res.cloudinary.com/demo/image/upload/logo.png',
+      closingLogoHeight: 150,
+    });
+    assert.equal(parsed.closingLogoHeight, 150);
+  });
+
+  it('rejects closingLogoHeight below minimum bound or above maximum bound', () => {
+    assert.throws(() => {
+      BrandSettingsSchema.parse({
+        closingLogoHeight: 25,
+      });
+    }, (err) => err instanceof z.ZodError);
+
+    assert.throws(() => {
+      BrandSettingsSchema.parse({
+        closingLogoHeight: 250,
+      });
+    }, (err) => err instanceof z.ZodError);
+  });
+
+  it('rejects invalid closingType values', () => {
+    assert.throws(() => {
+      BrandSettingsSchema.parse({
+        // @ts-expect-error Testing invalid runtime value
+        closingType: 'vector',
       });
     }, (err) => err instanceof z.ZodError);
   });

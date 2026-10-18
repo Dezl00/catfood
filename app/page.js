@@ -43,6 +43,11 @@ const DEFAULT_SETTINGS = {
   headerTextEn: 'CAT FOOD',
   headerLogoUrl: '',
   headerLogoHeight: 70,
+  closingType: 'text',
+  closingTextAr: 'كات فوود',
+  closingTextEn: 'CAT FOOD',
+  closingLogoUrl: '',
+  closingLogoHeight: 120,
 };
 
 const newId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
@@ -61,6 +66,13 @@ const mergeSettings = (settings) => {
     headerLogoHeight: Number.isFinite(Number(current.headerLogoHeight)) && Number(current.headerLogoHeight) >= 20 && Number(current.headerLogoHeight) <= 100
       ? Math.round(Number(current.headerLogoHeight))
       : DEFAULT_SETTINGS.headerLogoHeight,
+    closingType: current.closingType === 'image' ? 'image' : 'text',
+    closingTextAr: typeof current.closingTextAr === 'string' ? current.closingTextAr : DEFAULT_SETTINGS.closingTextAr,
+    closingTextEn: typeof current.closingTextEn === 'string' ? current.closingTextEn : DEFAULT_SETTINGS.closingTextEn,
+    closingLogoUrl: typeof current.closingLogoUrl === 'string' ? current.closingLogoUrl : DEFAULT_SETTINGS.closingLogoUrl,
+    closingLogoHeight: Number.isFinite(Number(current.closingLogoHeight)) && Number(current.closingLogoHeight) >= 30 && Number(current.closingLogoHeight) <= 220
+      ? Math.round(Number(current.closingLogoHeight))
+      : DEFAULT_SETTINGS.closingLogoHeight,
   };
 };
 const price = (value, currency) => value === '' || value === undefined ? '—' : String(value) + ' ' + currency;
@@ -299,16 +311,33 @@ function CatalogWelcomeSheet({ brand }) {
 }
 
 function CatalogClosingSheet({ brand }) {
-  const brandAr = 'كات فوود';
-  const brandEn = 'CAT FOOD';
+  const settings = mergeSettings(brand?.settings);
+  const isImage = settings.closingType === 'image' && Boolean(settings.closingLogoUrl);
+  const brandAr = settings.closingTextAr || 'كات فوود';
+  const brandEn = settings.closingTextEn || 'CAT FOOD';
 
   return (
     <section className="catfood-page" id="closing" aria-label="صفحة الختام">
       <div className="cf-navy-arch" />
       <div className="cf-thanks-ar">خدمتكم تسعدنا</div>
       <div className="cf-thanks-en">THANK YOU</div>
-      <div className="cf-brand-ar">{brandAr}</div>
-      <div className="cf-brand-en">{brandEn}</div>
+      {isImage ? (
+        <div className="cf-closing-logo-wrap">
+          <img
+            src={optimizeCloudinaryUrl(settings.closingLogoUrl, { width: 1400, quality: 'auto:good', format: 'png', background: '' })}
+            alt={brandAr || brandEn || 'شعار صفحة الختام'}
+            className="cf-closing-logo-img"
+            style={{ height: `${settings.closingLogoHeight || 120}pt`, width: 'auto' }}
+            loading="eager"
+            decoding="sync"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="cf-brand-ar">{brandAr}</div>
+          <div className="cf-brand-en">{brandEn}</div>
+        </>
+      )}
       <div className="cf-closing-footer-text">{brandEn}</div>
       <div className="cf-closing-footer-line" />
     </section>
@@ -3472,6 +3501,10 @@ export default function Home() {
   const [uploadingHeaderLogo, setUploadingHeaderLogo] = useState(false);
   const [applyingAllHeaders, setApplyingAllHeaders] = useState(false);
   const headerFileInputRef = useRef(null);
+  const [showClosingMediaPicker, setShowClosingMediaPicker] = useState(false);
+  const [uploadingClosingLogo, setUploadingClosingLogo] = useState(false);
+  const [applyingAllClosing, setApplyingAllClosing] = useState(false);
+  const closingFileInputRef = useRef(null);
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -4407,6 +4440,59 @@ export default function Home() {
     }
   };
 
+  const handleClosingDeviceUpload = async (file) => {
+    if (!file || !activeBrand) return;
+    setUploadingClosingLogo(true);
+    try {
+      const formData = new FormData();
+      // Keep original file intact (especially PNG transparency) without canvas re-compression
+      formData.set('file', file);
+      formData.set('folder', (activeBrand.id || 'general') + '/logos');
+      formData.set('brandId', activeBrand.id);
+      const result = await request('/api/upload', { method: 'POST', body: formData });
+      updateSettings('closingLogoUrl', result.url);
+      notify('تم رفع شعار صفحة الختام بنجاح.');
+    } catch (err) {
+      notify(err.message || 'فشل رفع الشعار.', 'warning');
+    } finally {
+      setUploadingClosingLogo(false);
+      if (closingFileInputRef.current) closingFileInputRef.current.value = '';
+    }
+  };
+
+  const applyClosingToAllBrands = async () => {
+    if (!activeBrand) return;
+    const current = mergeSettings(activeBrand.settings);
+    const labelType = current.closingType === 'image' ? 'شعار صورة' : 'شعار نصي';
+    const confirmed = window.confirm(
+      `هل تريد تطبيق إعدادات صفحة الختام (${labelType} والنصوص/الصورة والحجم الحالي) على جميع البراندات في الكتالوج؟`
+    );
+    if (!confirmed) return;
+    setApplyingAllClosing(true);
+    try {
+      const res = await request('/api/brands', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'apply_settings_all',
+          settings: {
+            closingType: current.closingType,
+            closingTextAr: current.closingTextAr,
+            closingTextEn: current.closingTextEn,
+            closingLogoUrl: current.closingLogoUrl,
+            closingLogoHeight: current.closingLogoHeight || 120,
+          },
+        }),
+      });
+      notify(`تم تطبيق إعدادات صفحة الختام على جميع البراندات (${res.count || 'جميع'} براند) بنجاح.`);
+      await refresh(activeBrand.id);
+    } catch (err) {
+      notify(err.message || 'حدث خطأ أثناء تطبيق الإعدادات على جميع البراندات.', 'warning');
+    } finally {
+      setApplyingAllClosing(false);
+    }
+  };
+
   const products = activeBrand?.products || [];
   const filteredProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -5130,9 +5216,10 @@ export default function Home() {
                               min="30"
                               max="95"
                               step="1"
+                              className="smooth-slider"
                               value={mergeSettings(activeBrand.settings).headerLogoHeight || 70}
                               onChange={(e) => updateSettings('headerLogoHeight', Number(e.target.value))}
-                              style={{ flex: 1, accentColor: '#09090b', cursor: 'pointer' }}
+                              style={{ flex: 1 }}
                             />
                             <span style={{ fontSize: '11px', color: '#71717a' }}>أكبر</span>
                           </div>
@@ -5231,6 +5318,203 @@ export default function Home() {
                 )}
               </div>
 
+              {/* شعار صفحة الختام */}
+              <div className="settings-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h3 style={{ margin: 0 }}>شعار صفحة الختام</h3>
+                  <button
+                    type="button"
+                    className="button button-ghost"
+                    style={{ fontSize: '12px', padding: '6px 12px' }}
+                    onClick={applyClosingToAllBrands}
+                    disabled={busy || applyingAllClosing}
+                    title="تطبيق إعدادات صفحة الختام (النوع، النصوص، أو الشعار) على جميع البراندات"
+                  >
+                    <Icon name="copy" size={14} />
+                    {applyingAllClosing ? 'جاري التطبيق…' : 'تطبيق هذا الشعار على كامل البراندات'}
+                  </button>
+                </div>
+                <p style={{ fontSize: '12px', color: '#71717a', margin: '0 0 14px' }}>
+                  تحديد ما يظهر أسفل عبارة &ldquo;خدمتكم تسعدنا&rdquo; في صفحة ختام الكتالوج (شعار نصي أو صورة).
+                </p>
+
+                <div className="header-type-toggle">
+                  <button
+                    type="button"
+                    className={['header-type-btn', (mergeSettings(activeBrand.settings).closingType !== 'image') && 'active'].filter(Boolean).join(' ')}
+                    onClick={() => updateSettings('closingType', 'text')}
+                  >
+                    <Icon name="type" size={15} />
+                    <span>شعار نصي</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={['header-type-btn', (mergeSettings(activeBrand.settings).closingType === 'image') && 'active'].filter(Boolean).join(' ')}
+                    onClick={() => updateSettings('closingType', 'image')}
+                  >
+                    <Icon name="image" size={15} />
+                    <span>شعار صورة</span>
+                  </button>
+                </div>
+
+                {mergeSettings(activeBrand.settings).closingType === 'image' ? (
+                  <div className="header-logo-config" style={{ marginTop: '8px' }}>
+                    {mergeSettings(activeBrand.settings).closingLogoUrl ? (
+                      <div style={{ background: '#fafafa', border: '1px solid #e4e4e7', borderRadius: '10px', padding: '14px' }}>
+                        <label className="field-label" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>معاينة الشعار في صفحة الختام</label>
+                        <div className="closing-logo-preview-box">
+                          <img
+                            src={optimizeCloudinaryUrl(mergeSettings(activeBrand.settings).closingLogoUrl, { width: 1400, format: 'png', background: '', quality: 'auto:good' })}
+                            alt="شعار صفحة الختام"
+                            style={{ maxHeight: `${Math.round(((mergeSettings(activeBrand.settings).closingLogoHeight || 120) / 200) * 140)}px` }}
+                          />
+                          {uploadingClosingLogo && <div className="product-image-uploading-overlay">جارٍ الرفع…</div>}
+                        </div>
+                        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            onClick={() => setShowClosingMediaPicker(true)}
+                          >
+                            <Icon name="image" size={15} /> اختيار من المعرض
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost"
+                            onClick={() => closingFileInputRef.current?.click()}
+                            disabled={uploadingClosingLogo}
+                          >
+                            <Icon name="upload" size={15} /> رفع من الجهاز
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost text-danger"
+                            onClick={() => updateSettings('closingLogoUrl', '')}
+                          >
+                            <Icon name="trash" size={15} /> إزالة الشعار
+                          </button>
+                        </div>
+
+                        {/* التحكم في حجم الشعار في صفحة الختام */}
+                        <div className="header-logo-size-control" style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #e4e4e7' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <label className="field-label" style={{ fontSize: '12px', fontWeight: 600, color: '#09090b', margin: 0 }}>
+                              التحكم في حجم شعار صفحة الختام
+                            </label>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#09090b', background: '#e4e4e7', padding: '2px 8px', borderRadius: '6px', direction: 'ltr' }}>
+                              {(mergeSettings(activeBrand.settings).closingLogoHeight || 120)} pt
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '11px', color: '#71717a' }}>أصغر</span>
+                            <input
+                              type="range"
+                              min="40"
+                              max="200"
+                              step="1"
+                              className="smooth-slider"
+                              value={mergeSettings(activeBrand.settings).closingLogoHeight || 120}
+                              onChange={(e) => updateSettings('closingLogoHeight', Number(e.target.value))}
+                              style={{ flex: 1 }}
+                            />
+                            <span style={{ fontSize: '11px', color: '#71717a' }}>أكبر</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
+                            {[
+                              { label: 'صغير (70pt)', value: 70 },
+                              { label: 'متوسط (100pt)', value: 100 },
+                              { label: 'افتراضي (120pt)', value: 120 },
+                              { label: 'كبير (150pt)', value: 150 },
+                              { label: 'كبير جداً (180pt)', value: 180 },
+                              { label: 'أقصى ارتفاع (200pt)', value: 200 },
+                            ].map((preset) => (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                className="button button-ghost"
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '3px 10px',
+                                  background: (mergeSettings(activeBrand.settings).closingLogoHeight || 120) === preset.value ? '#09090b' : '#ffffff',
+                                  color: (mergeSettings(activeBrand.settings).closingLogoHeight || 120) === preset.value ? '#ffffff' : '#71717a',
+                                  border: '1px solid #e4e4e7',
+                                  borderRadius: '6px',
+                                }}
+                                onClick={() => updateSettings('closingLogoHeight', preset.value)}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="product-image-empty-dropzone"
+                        style={{ padding: '20px', textAlign: 'center', border: '1.5px dashed #d4d4d8', borderRadius: '10px', background: '#fafafa' }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (e.dataTransfer.files?.[0]) handleClosingDeviceUpload(e.dataTransfer.files[0]);
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px', color: '#71717a' }}>
+                          <Icon name="image" size={32} />
+                        </div>
+                        <div style={{ marginBottom: '14px' }}>
+                          <strong style={{ display: 'block', fontSize: '13px', color: '#09090b', marginBottom: '4px' }}>اختر شعار صفحة الختام</strong>
+                          <span style={{ fontSize: '12px', color: '#71717a' }}>اختر صورة الشعار من المعرض أو ارفعها من جهازك مباشرة لتظهر في صفحة ختام الكتالوج</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            onClick={() => setShowClosingMediaPicker(true)}
+                          >
+                            <Icon name="image" size={15} /> اختيار من المعرض
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost"
+                            onClick={() => closingFileInputRef.current?.click()}
+                            disabled={uploadingClosingLogo}
+                          >
+                            <Icon name="upload" size={15} /> {uploadingClosingLogo ? 'جارٍ الرفع…' : 'رفع من الجهاز'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      ref={closingFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) handleClosingDeviceUpload(e.target.files[0]);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="form-grid two">
+                    <Field label="نص صفحة الختام بالعربي">
+                      <input
+                        value={mergeSettings(activeBrand.settings).closingTextAr}
+                        onChange={(event) => updateSettings('closingTextAr', event.target.value)}
+                        placeholder="مثال: كات فوود"
+                      />
+                    </Field>
+                    <Field label="نص صفحة الختام بالإنجليزي">
+                      <input
+                        value={mergeSettings(activeBrand.settings).closingTextEn}
+                        onChange={(event) => updateSettings('closingTextEn', event.target.value)}
+                        placeholder="مثال: CAT FOOD"
+                        dir="ltr"
+                      />
+                    </Field>
+                  </div>
+                )}
+              </div>
+
               {/* 2. قسم التذييل والعملة */}
               <div className="settings-section">
                 <h3>التذييل والعملة</h3>
@@ -5275,7 +5559,7 @@ export default function Home() {
               </div>
 
               <div className="settings-save">
-                <button className="button button-primary" disabled={busy || uploadingHeaderLogo}>
+                <button className="button button-primary" disabled={busy || uploadingHeaderLogo || uploadingClosingLogo}>
                   <Icon name="check" size={18} />
                   {busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}
                 </button>
@@ -5414,6 +5698,22 @@ export default function Home() {
             notify('تم اختيار شعار الهيدر بنجاح.');
           }
           setShowHeaderMediaPicker(false);
+        }}
+        notify={notify}
+      />
+    )}
+    {showClosingMediaPicker && (
+      <MediaPickerModal
+        brands={brands}
+        activeBrandId={activeBrand?.id}
+        onClose={() => setShowClosingMediaPicker(false)}
+        onSelect={(urlOrItem) => {
+          const url = typeof urlOrItem === 'string' ? urlOrItem : urlOrItem?.url || '';
+          if (url) {
+            updateSettings('closingLogoUrl', url);
+            notify('تم اختيار شعار صفحة الختام بنجاح.');
+          }
+          setShowClosingMediaPicker(false);
         }}
         notify={notify}
       />

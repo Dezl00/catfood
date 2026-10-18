@@ -120,10 +120,10 @@ export async function POST(request) {
       .replace(/\sdecoding=["']async["']/gi, ' decoding="sync"')
       .replace(/<img\s+([^>]*?)src=["'](https?:\/\/[^"']*cloudinary\.com\/[^"']*\/upload\/[^"']*)["']([^>]*?)>/gi, (match, before, url, after) => {
         const fullTag = match.toLowerCase();
-        const isHeaderLogo = fullTag.includes('cf-header-logo-img') || fullTag.includes('cf-brand-logo-img');
-        if (isHeaderLogo) {
+        const isLogo = fullTag.includes('cf-header-logo-img') || fullTag.includes('cf-closing-logo-img') || fullTag.includes('cf-brand-logo-img');
+        if (isLogo) {
           // Transparent PNG: NEVER force JPEG or add white background!
-          const optimized = optimizeCloudinaryUrl(url, { width: 1200, quality: 'auto:good', format: 'png', background: '' });
+          const optimized = optimizeCloudinaryUrl(url, { width: 1400, quality: 'auto:good', format: 'png', background: '' });
           return `<img ${before}src="${optimized}"${after}>`;
         }
         const optimized = optimizeCloudinaryUrl(url, { width: 640, quality: 'auto:eco', format: 'jpg', background: 'white' });

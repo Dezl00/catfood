@@ -72,6 +72,11 @@ const BrandSettingsSchema = z.object({
   headerTextEn: z.string().max(250).optional().describe('نص الهيدر الإنجليزي'),
   headerLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار الهيدر'),
   headerLogoHeight: z.number().min(20).max(100).optional().describe('ارتفاع الشعار في الهيدر بنقاط الطباعة (pt) بين 20 و 100'),
+  closingType: z.enum(['text', 'image']).optional().describe('نوع الشعار في صفحة الختام: text أو image'),
+  closingTextAr: z.string().max(250).optional().describe('نص صفحة الختام العربي'),
+  closingTextEn: z.string().max(250).optional().describe('نص صفحة الختام الإنجليزي'),
+  closingLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار صفحة الختام'),
+  closingLogoHeight: z.number().min(30).max(220).optional().describe('ارتفاع شعار صفحة الختام بنقاط الطباعة (pt) بين 30 و 220'),
   visible: z
     .object({
       description: z.boolean().optional(),
