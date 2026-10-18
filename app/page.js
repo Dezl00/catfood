@@ -1879,6 +1879,7 @@ export default function Home() {
   const [previewModal, setPreviewModal] = useState(null);
   const [catalogPreviewModal, setCatalogPreviewModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(null);
   const [activeDragId, setActiveDragId] = useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2084,33 +2085,46 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    if (view !== 'catalog' || !gridRef.current) return;
-    let sortable;
-    let isMounted = true;
-    import('sortablejs').then(({ default: Sortable }) => {
-      if (!isMounted || !gridRef.current) return;
-      sortable = Sortable.create(gridRef.current, {
-        handle: '.drag-handle',
-        animation: 200,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass: 'sortable-drag',
-        onEnd: (evt) => {
-          if (evt.oldIndex === evt.newIndex) return;
-          const items = Array.from(gridRef.current?.children || []);
-          const orderedIds = items.map((el) => el.getAttribute('data-id')).filter(Boolean);
-          if (orderedIds.length && activeBrand?.products) {
-            reorderProductsByIds(orderedIds);
-          }
-        },
+  const handleDragStart = (event) => {
+    setActiveDragId(event.active.id);
+  };
+
+  const handleDragOver = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !activeBrand?.products) return;
+
+    const oldIndex = activeBrand.products.findIndex((p) => p.id === active.id);
+    const newIndex = activeBrand.products.findIndex((p) => p.id === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      setActiveBrand((curr) => ({
+        ...curr,
+        products: arrayMove(curr.products, oldIndex, newIndex),
+      }));
+    }
+  };
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+
+    if (!activeBrand?.products) return;
+    const productIds = activeBrand.products.map((p) => p.id);
+
+    try {
+      setSavingOrder(true);
+      await request('/api/brands/' + activeBrand.id + '/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds }),
       });
-    });
-    return () => {
-      isMounted = false;
-      if (sortable) sortable.destroy();
-    };
-  }, [view, activeBrand?.id, activeBrand?.products?.length, query]);
+      notify('تم تحديث ترتيب الصفحات في الكتالوج بنجاح.');
+    } catch (err) {
+      notify(err.message || 'تعذر حفظ الترتيب', 'warning');
+      await refresh(activeBrand.id);
+    } finally {
+      setSavingOrder(false);
+    }
+  };
   const moveProduct = async (fromIndex, toIndex) => {
     if (!activeBrand || toIndex < 0 || toIndex >= activeBrand.products.length) return;
     const currentProducts = [...activeBrand.products];
@@ -2380,7 +2394,6 @@ export default function Home() {
           <Icon name="menu" size={20} />
         </button>
         <div className="topbar-title-wrap">
-          <p className="eyebrow">CATALOG STUDIO</p>
           <h1>
             {view === 'dashboard'
               ? 'لوحة التحكم'
@@ -2426,7 +2439,7 @@ export default function Home() {
           )}
         </div>
       </header>
-      {view === 'dashboard' && <section className="page-shell dashboard"><div className="dashboard-hero"><div><p className="eyebrow">MULTI-BRAND CATALOGS</p><h2>كل براند ومنتجاته في مكان واحد.</h2><p>أنشئ براند، ارفع الشعار، راجع Excel قبل الإدراج، ثم عدّل أي صفحة يدويًا وصدّر كتالوج PDF.</p><div className="hero-actions"><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button>{activeBrand && <button className="button button-ghost" onClick={() => go('catalog')}><Icon name="folder" size={18} /> فتح الصفحات</button>}</div></div><div className="dashboard-brand-card">{activeBrand ? <><BrandBadge brand={activeBrand} large /><div><span>البراند النشط</span><strong>{activeBrand.nameAr}</strong><small>{products.length} صفحة منتج</small></div></> : <><span className="hero-icon"><Icon name="tag" size={27} /></span><p>لا يوجد براند نشط</p></>}</div></div><div className="stats-grid"><Stat icon="tag" label="إجمالي البراندات" value={brands.length} /><Stat icon="file" label="صفحات البراند النشط" value={products.length} /><Stat icon="image" label="صور محفوظة" value={products.filter((item) => item.imageUrl).length} /><Stat icon="grid" label="مقاسات مسجلة" value={products.reduce((total, item) => total + (item.variants?.length || 0), 0)} /></div><section className="dashboard-section"><div className="section-bar"><div><h2>آخر البراندات</h2><p>اختر براندًا لتعديل صفحاته أو إعداداته.</p></div><button className="button button-ghost" onClick={() => go('brands')}>كل البراندات <Icon name="arrow" size={16} /></button></div>{brands.length ? <div className="brand-grid">{brands.slice(0, 4).map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section></section>}
+      {view === 'dashboard' && <section className="page-shell dashboard"><div className="dashboard-hero"><div><h2>كل براند ومنتجاته في مكان واحد.</h2><p>أنشئ براند، ارفع الشعار، راجع Excel قبل الإدراج، ثم عدّل أي صفحة يدويًا وصدّر كتالوج PDF.</p><div className="hero-actions"><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button>{activeBrand && <button className="button button-ghost" onClick={() => go('catalog')}><Icon name="folder" size={18} /> فتح الصفحات</button>}</div></div><div className="dashboard-brand-card">{activeBrand ? <><BrandBadge brand={activeBrand} large /><div><span>البراند النشط</span><strong>{activeBrand.nameAr}</strong><small>{products.length} صفحة منتج</small></div></> : <><span className="hero-icon"><Icon name="tag" size={27} /></span><p>لا يوجد براند نشط</p></>}</div></div><div className="stats-grid"><Stat icon="tag" label="إجمالي البراندات" value={brands.length} /><Stat icon="file" label="صفحات البراند النشط" value={products.length} /><Stat icon="image" label="صور محفوظة" value={products.filter((item) => item.imageUrl).length} /><Stat icon="grid" label="مقاسات مسجلة" value={products.reduce((total, item) => total + (item.variants?.length || 0), 0)} /></div><section className="dashboard-section"><div className="section-bar"><div><h2>آخر البراندات</h2><p>اختر براندًا لتعديل صفحاته أو إعداداته.</p></div><button className="button button-ghost" onClick={() => go('brands')}>كل البراندات <Icon name="arrow" size={16} /></button></div>{brands.length ? <div className="brand-grid">{brands.slice(0, 4).map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section></section>}
       {view === 'brands' && <section className="page-shell"><div className="section-bar"><div><h2>إدارة البراندات</h2><p>أضف براندات متعددة وغيّر الشعار والهوية في أي وقت.</p></div><button className="button button-primary" onClick={() => setBrandModal({})}><Icon name="plus" size={18} /> براند جديد</button></div>{brands.length ? <div className="brand-grid brand-grid--full">{brands.map((brand) => <BrandCard key={brand.id} brand={brand} selected={activeBrand?.id === brand.id} onOpen={() => chooseBrand(brand)} onEdit={() => setBrandModal(brand)} onDelete={() => removeBrand(brand)} />)}</div> : <EmptyState onNew={() => setBrandModal({})} />}</section>}
       {view === 'catalog' && (
         <section className="page-shell">
@@ -2558,26 +2571,52 @@ export default function Home() {
 
               {products.length ? (
                 <>
-                  <div ref={gridRef} className={['product-grid', `product-grid--cols-${catalogCols}`].join(' ')}>
-                    {filteredProducts.map((product, idx) => {
-                      const actualIndex = products.findIndex((p) => p.id === product.id);
-                      return (
-                        <ProductCard
-                          key={product.id}
-                          brand={activeBrand}
-                          product={product}
-                          index={actualIndex >= 0 ? actualIndex : idx}
-                          total={products.length}
-                          onMoveUp={() => moveProduct(actualIndex, actualIndex - 1)}
-                          onMoveDown={() => moveProduct(actualIndex, actualIndex + 1)}
-                          onPreview={() => setPreviewModal(product)}
-                          onEdit={() => setProductModal({ mode: 'edit', product })}
-                          onDuplicate={() => duplicateProduct(product)}
-                          onDelete={() => removeProduct(product)}
-                        />
-                      );
-                    })}
-                  </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={filteredProducts.map((p) => p.id)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className={['product-grid', `product-grid--cols-${catalogCols}`].join(' ')}>
+                        {filteredProducts.map((product, idx) => {
+                          const actualIndex = products.findIndex((p) => p.id === product.id);
+                          return (
+                            <SortableProductCard
+                              key={product.id}
+                              brand={activeBrand}
+                              product={product}
+                              index={actualIndex >= 0 ? actualIndex : idx}
+                              total={products.length}
+                              onMoveUp={() => moveProduct(actualIndex, actualIndex - 1)}
+                              onMoveDown={() => moveProduct(actualIndex, actualIndex + 1)}
+                              onPreview={() => setPreviewModal(product)}
+                              onEdit={() => setProductModal({ mode: 'edit', product })}
+                              onDuplicate={() => duplicateProduct(product)}
+                              onDelete={() => removeProduct(product)}
+                            />
+                          );
+                        })}
+                      </div>
+                    </SortableContext>
+                    <DragOverlay adjustScale={false}>
+                      {activeDragItem ? (
+                        <div className="is-drag-overlay" style={{ width: '100%' }}>
+                          <ProductCard
+                            brand={activeBrand}
+                            product={activeDragItem}
+                            index={products.findIndex((p) => p.id === activeDragItem.id)}
+                            total={products.length}
+                            isOverlay
+                          />
+                        </div>
+                      ) : null}
+                    </DragOverlay>
+                  </DndContext>
                   {!filteredProducts.length && (
                     <div className="search-empty">لا توجد صفحات تطابق البحث.</div>
                   )}
@@ -2596,7 +2635,7 @@ export default function Home() {
       )}
       {view === 'gallery' && <GalleryView brands={brands} activeBrand={activeBrand} notify={notify} setConfirmModal={setConfirmModal} />}
       {view === 'import' && <section className="page-shell import-page">{activeBrand ? <><div className="import-hero"><span className="hero-icon"><Icon name="upload" size={27} /></span><p className="eyebrow">EXCEL COLUMN MAPPING & PREVIEW</p><h2>استيراد صفحات {activeBrand.nameAr}</h2><p>ارفع ملف Excel، حدد مطابقة كل عامود مع العنصر المناسب له، عاين البيانات، ثم أدرج الصفحات في الكتالوج.</p></div>{!rawFileState && !importRows.length && <div className="import-actions"><button className="import-card" onClick={downloadTemplate}><span><Icon name="download" size={23} /></span><div><strong>1. تنزيل قالب Excel</strong><p>يشمل الأعمدة الافتراضية وحقل variants للمقاسات المتعددة.</p></div><Icon name="arrow" size={19} /></button><button className="import-card" onClick={() => importInput.current?.click()}><span><Icon name="upload" size={23} /></span><div><strong>2. اختيار ملف Excel</strong><p>يدعم أي ملف XLSX أو XLS بأي ترتيب للأعمدة ويفتح واجهة المطابقة.</p></div><Icon name="arrow" size={19} /></button><input ref={importInput} type="file" accept=".xlsx,.xls" onChange={readExcel} /></div>}{rawFileState && !importRows.length && <section className="import-mapping"><div className="mapping-header"><div><h3><Icon name="tag" size={18} /> تحديد ومطابقة أعمدة الملف</h3><p>اختر لكل عنصر في الكتالوج العامود المقابل له في ملف Excel المرفوع:</p></div><div className="mapping-file-info"><span className="mapping-badge">الملف: {rawFileState.filename} ({rawFileState.rows.length} صف)</span><button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button></div></div><div className="mapping-grid">{MAPPABLE_FIELDS.map((field) => <div key={field.key} className={['mapping-field-card', field.required && 'is-required'].filter(Boolean).join(' ')}><div className="mapping-field-label"><span>{field.label}</span>{field.required ? <span className="req">مطلوب</span> : <small className="mapping-field-hint">{field.hint}</small>}</div><select className="mapping-select" value={rawFileState.mapping[field.key] || ''} onChange={(e) => updateColumnMapping(field.key, e.target.value)}><option value="">-- تجاهل هذا الحقل --</option>{rawFileState.headers.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>)}</div><div className="mapping-preview-section"><h4>معاينة حية للمطابقة (أول {Math.min(3, rawFileState.rows.length)} صفوف):</h4><div className="table-wrap"><table><thead><tr><th>الاسم بالعربي</th><th>الاسم بالإنجليزي</th><th>سعر الحبة</th><th>سعر الكرتون</th><th>عدد الكرتون</th><th>الوزن / الحجم</th><th>الباركود</th></tr></thead><tbody>{rawFileState.rows.slice(0, 3).map((r, i) => { const p = rowToProductWithMapping(r, rawFileState.mapping); const v = p.variants[0] || {}; return <tr key={i}><td><strong>{p.nameAr || '—'}</strong></td><td>{p.nameEn || '—'}</td><td>{v.pricePerPiece || '—'}</td><td>{v.pricePerCarton || '—'}</td><td>{v.qtyPerCarton || '—'}</td><td>{v.weight ? (v.weight + ' ' + (v.unit || '')) : '—'}</td><td dir="ltr">{p.barcode || '—'}</td></tr>; })}</tbody></table></div></div><div className="mapping-actions-bar"><button className="button button-ghost" onClick={resetImport}>إلغاء واختيار ملف آخر</button><button className="button button-primary" onClick={applyColumnMapping}><Icon name="check" size={17} /> تطبيق المطابقة ومعاينة البيانات ({rawFileState.rows.length} صف)</button></div></section>}{importRows.length > 0 && <section className="import-review"><div className="review-header"><div><h3>معاينة البيانات قبل الإدراج</h3><p>{importRows.length} صف جاهز للمراجعة. يمكنك تعديل أي صف أو حذفه، ثم الضغط على إدراج الصفحات في الكتالوج.</p></div><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{rawFileState && <button className="button button-ghost" onClick={() => setImportRows([])} title="العودة لشاشة مطابقة وتحديد الأعمدة"><Icon name="settings" size={15} /> تعديل مطابقة الأعمدة</button>}<button className="button button-ghost" onClick={resetImport}>إلغاء الملف</button><button className="button button-primary" disabled={busy} onClick={insertImportRows}><Icon name="check" size={17} /> {busy ? 'جاري الإدراج…' : 'إدراج ' + importRows.length + ' صفحة'}</button></div></div><div className="table-wrap"><table><thead><tr><th>المنتج</th><th>المقاسات</th><th>الباركود</th><th>إجراء</th></tr></thead><tbody>{importRows.map((row, index) => <tr key={row.id}><td><strong>{row.nameAr || 'بدون اسم عربي'}</strong><small>{row.nameEn}</small></td><td>{row.variants.map((variant) => variant.weight ? variant.weight + ' ' + normalizeUnit(variant.unit) : '—').join('، ')}</td><td dir="ltr">{row.barcode || '—'}</td><td><button className="table-action" onClick={() => setProductModal({ mode: 'import', index, product: row })}><Icon name="edit" size={15} /> تعديل</button><button className="table-action danger" onClick={() => setImportRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15} /> حذف</button></td></tr>)}</tbody></table></div></section>}</> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
-      {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><p className="eyebrow">ACTIVE BRAND DESIGN</p><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'description', label: 'الوصف' }, { key: 'prices', label: 'سعر الحبة' }, { key: 'cartonPrice', label: 'سعر الكرتون' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key] !== false} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
+      {view === 'settings' && <section className="page-shell settings-page">{activeBrand ? <form className="settings-card" onSubmit={updateBrandSettings}><div className="settings-intro"><h2>إعدادات {activeBrand.nameAr}</h2><p>تُطبّق على المعاينة وجميع صفحات PDF للبراند الحالي.</p></div><div className="settings-section"><h3>التذييل والعملة</h3><div className="form-grid two"><Field label="نص التذييل"><input value={mergeSettings(activeBrand.settings).footerText} onChange={(event) => updateSettings('footerText', event.target.value)} /></Field><Field label="رمز العملة"><input value={mergeSettings(activeBrand.settings).currency} onChange={(event) => updateSettings('currency', event.target.value)} /></Field></div></div><div className="settings-section"><h3>الحقول الظاهرة في صفحة المنتج</h3><div className="visibility-options">{[{ key: 'description', label: 'الوصف' }, { key: 'prices', label: 'سعر الحبة' }, { key: 'cartonPrice', label: 'سعر الكرتون' }, { key: 'carton', label: 'عدد الكرتون' }, { key: 'barcode', label: 'الباركود' }].map((option) => <label key={option.key} className="switch-row"><span>{option.label}</span><input type="checkbox" checked={mergeSettings(activeBrand.settings).visible[option.key] !== false} onChange={() => toggleVisible(option.key)} /><i /></label>)}</div></div><div className="settings-save"><button className="button button-primary" disabled={busy}><Icon name="check" size={18} />{busy ? 'جاري الحفظ…' : 'حفظ الإعدادات'}</button></div></form> : <NeedsBrand onCreate={() => setBrandModal({})} />}</section>}
     </section>
     {exporting && activeBrand && (
       <div className="pdf-stage" ref={pdfRef} aria-hidden="true">
@@ -2615,7 +2654,7 @@ export default function Home() {
         <CatalogClosingSheet brand={activeBrand} />
       </div>
     )}
-    {brandModal && <BrandEditor brand={brandModal.id ? brandModal : null} onClose={() => setBrandModal(null)} onSaved={onBrandSaved} notify={notify} />}
+    {brandModal && <BrandEditor brand={brandModal.id ? brandModal : null} brands={brands} onClose={() => setBrandModal(null)} onSaved={onBrandSaved} notify={notify} />}
     {productModal && activeBrand && <ProductEditor brand={activeBrand} brands={brands} product={productModal.product} title={productModal.mode === 'edit' ? 'تعديل صفحة المنتج' : productModal.mode === 'import' ? 'تعديل صف الملف المستورد' : 'صفحة منتج جديدة'} onClose={() => setProductModal(null)} onSaved={saveProduct} notify={notify} />}
     {previewModal && activeBrand && (
       <Modal
@@ -2624,17 +2663,26 @@ export default function Home() {
         onClose={() => setPreviewModal(null)}
         wide
       >
-        <PreviewToolbar zoom={previewZoom} setZoom={setPreviewZoom} autoScale={autoScale} />
-        <div className="sheet-preview-modal-body">
-          {paginateProductVariants(previewModal, mergeSettings(activeBrand.settings)).map((pageVariants, pIdx) => (
-            <ScaledPageWrapper key={`${previewModal.id}-p${pIdx}`} scale={effectivePreviewScale}>
-              <ProductSheet
-                brand={activeBrand}
-                product={previewModal}
-                variants={pageVariants}
-              />
-            </ScaledPageWrapper>
-          ))}
+        <PreviewToolbar zoom={previewZoom} setZoom={setPreviewZoom} autoScale={singleFitScale} />
+        <div className="catalog-preview-scroll">
+          {paginateProductVariants(previewModal, mergeSettings(activeBrand.settings)).map((pageVariants, pIdx, allPages) => {
+            const pageNum = products.findIndex((p) => p.id === previewModal.id) + 2;
+            return (
+              <div key={`${previewModal.id}-p${pIdx}`} className="catalog-preview-page-wrap">
+                <div className="catalog-preview-page-header">
+                  <strong>صفحة {pageNum}</strong>
+                  <span>{previewModal.nameAr || previewModal.nameEn}{allPages.length > 1 ? ` (صفحة ${pIdx + 1} من ${allPages.length})` : ''}</span>
+                </div>
+                <ScaledPageWrapper scale={effectivePreviewScale}>
+                  <ProductSheet
+                    brand={activeBrand}
+                    product={previewModal}
+                    variants={pageVariants}
+                  />
+                </ScaledPageWrapper>
+              </div>
+            );
+          })}
         </div>
       </Modal>
     )}
