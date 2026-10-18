@@ -153,67 +153,6 @@ function UploadZone({ preview, onFile, label, note, compact = false }) {
   </div>;
 }
 
-function expandDescriptionBoxes(container) {
-  if (!container) return;
-  const boxes = Array.from(container.querySelectorAll('.cf-desc-box'));
-  if (!boxes.length) return;
-
-  let maxNeeded = 0;
-  boxes.forEach((box) => {
-    const textAr = box.querySelector('.cf-desc-ar-text');
-    const textEn = box.querySelector('.cf-desc-en-text');
-    const textEl = textAr || textEn;
-    if (!textEl) return;
-
-    const isArabic = Boolean(textAr);
-    textEl.style.fontSize = isArabic ? '11pt' : '13pt';
-    textEl.style.lineHeight = isArabic ? '16.5pt' : '15pt';
-
-    const needed = Number((textEl.scrollHeight + 5).toFixed(1));
-    if (needed > maxNeeded) {
-      maxNeeded = needed;
-    }
-  });
-
-  if (maxNeeded > 0) {
-    const firstBox = boxes[0];
-    const currentHeight = parseFloat(firstBox.style.height) || 0;
-    const delta = maxNeeded - currentHeight;
-
-    if (delta > 0.5) {
-      boxes.forEach((box) => {
-        const currentTop = parseFloat(box.style.top) || 0;
-        box.style.height = `${maxNeeded}pt`;
-        // Grow UPWARDS: shift top upwards by delta to anchor bottom and prevent table overlap
-        box.style.top = `${currentTop - delta}pt`;
-      });
-
-      // Reduce image card height above description to maintain balance
-      const card = container.querySelector('.cf-image-card');
-      if (card) {
-        const currentCardHeight = parseFloat(card.style.height) || 0;
-        const newCardHeight = Math.max(120.0, currentCardHeight - delta);
-        card.style.height = `${newCardHeight}pt`;
-        const img = card.querySelector('.cf-product-image-img');
-        if (img) {
-          img.style.maxHeight = `${newCardHeight - 48}pt`;
-        }
-      }
-
-      // Shift name labels upwards with the card bottom
-      const nameAr = container.querySelector('.cf-name-ar');
-      if (nameAr) {
-        const currentNameArTop = parseFloat(nameAr.style.top) || 0;
-        nameAr.style.top = `${currentNameArTop - delta}pt`;
-      }
-      const pill = container.querySelector('.cf-name-pill');
-      if (pill) {
-        const currentPillTop = parseFloat(pill.style.top) || 0;
-        pill.style.top = `${currentPillTop - delta}pt`;
-      }
-    }
-  }
-}
 
 function formatVariantCell(variant, product, key) {
   switch (key) {
@@ -295,16 +234,9 @@ function ProductSheet({ brand, product, variants: customVariants }) {
 
   const layout = computeProductLayout(product, settings, variants);
   const columns = getTableColumns(settings.visible, variants);
-  const sheetRef = useRef(null);
-
-  useEffect(() => {
-    if (sheetRef.current) {
-      expandDescriptionBoxes(sheetRef.current);
-    }
-  }, [product.descriptionAr, product.descriptionEn, layout.descHeight]);
 
   return (
-    <article ref={sheetRef} className="catfood-page" data-page="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
+    <article className="catfood-page" data-page="product" aria-label={product.nameAr || product.nameEn || 'صفحة المنتج'}>
       {/* Header Band */}
       <div className="cf-header-band" />
       <div className="cf-header-ar">كات فوود</div>
@@ -728,45 +660,325 @@ function ScaledPageWrapper({ children, scale }) {
   );
 }
 
-function PreviewToolbar({ zoom, setZoom, autoScale }) {
-  const currentScale = typeof zoom === 'number' ? zoom : autoScale;
+function CatalogPreviewModal({
+  brand,
+  products = [],
+  onClose,
+  onExport,
+  exportProgress,
+  busy,
+  windowDimensions,
+  isMobile,
+}) {
+  const [activePageIndex, setActivePageIndex] = useState(0);
+  const mainScrollRef = useRef(null);
+  const thumbnailsRef = useRef(null);
+
+  const allCatalogPages = useMemo(() => {
+    if (!brand) return [];
+    const pages = [];
+    // 1. Cover / Welcome page
+    pages.push({
+      id: 'welcome-page',
+      type: 'welcome',
+      pageNumber: 1,
+      title: brand.nameAr || 'صفحة الترحيب',
+      subtitle: 'صفحة الغلاف',
+    });
+    // 2. Product pages
+    let counter = 2;
+    products.forEach((prod) => {
+      const pPages = paginateProductVariants(prod, mergeSettings(brand.settings));
+      pPages.forEach((pageVariants, pIdx) => {
+        pages.push({
+          id: `${prod.id}-p${pIdx}`,
+          type: 'product',
+          product: prod,
+          variants: pageVariants,
+          pageNumber: counter++,
+          pageIndexInProduct: pIdx,
+          totalProductPages: pPages.length,
+          title: prod.nameAr || prod.nameEn || 'صفحة منتج',
+          subtitle: pPages.length > 1 ? `صفحة ${pIdx + 1} من ${pPages.length}` : (prod.nameEn || ''),
+        });
+      });
+    });
+    // 3. Closing page
+    pages.push({
+      id: 'closing-page',
+      type: 'closing',
+      pageNumber: counter,
+      title: 'صفحة الختام',
+      subtitle: 'خدمتكم تسعدنا',
+    });
+    return pages;
+  }, [brand, products]);
+
+  // Precise height-fit scale calculation on desktop:
+  // Available height inside modal = windowDimensions.height - topbar(58px) - scrubber(52px) - paddings(60px)
+  const desktopAvailableHeight = Math.max(340, windowDimensions.height - 170);
+  const desktopFitHeightScale = Number((desktopAvailableHeight / 1122.52).toFixed(3));
+  // Available width = windowDimensions.width - thumbnailsRail(190px) - dialogPadding(60px)
+  const desktopCatalogAvailableWidth = Math.max(340, windowDimensions.width - 250);
+  const desktopCatalogFitWidthScale = Number((desktopCatalogAvailableWidth / 793.7).toFixed(3));
+  // Scale ensures the full A4 page (top to bottom) is 100% visible on screen at once
+  const desktopFullFitScale = Math.min(desktopFitHeightScale, desktopCatalogFitWidthScale, 1.0);
+
+  // Mobile scale (fills screen width)
+  const mobileAvailableWidth = Math.max(280, windowDimensions.width - 24);
+  const mobileScale = Math.min(1.0, Math.max(0.20, Number((mobileAvailableWidth / 793.7).toFixed(3))));
+
+  const effectiveScale = isMobile ? mobileScale : desktopFullFitScale;
+
+  const scrollToPage = useCallback((index) => {
+    if (index < 0 || index >= allCatalogPages.length) return;
+    setActivePageIndex(index);
+    const targetEl = document.getElementById(`preview-page-card-${index}`);
+    if (targetEl && mainScrollRef.current) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const thumbEl = document.getElementById(`preview-thumb-${index}`);
+    if (thumbEl && thumbnailsRef.current) {
+      thumbEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [allCatalogPages.length]);
+
+  const handleMainScroll = (e) => {
+    const container = e.currentTarget;
+    const pageEls = container.querySelectorAll('.catalog-preview-page-wrap');
+    if (!pageEls.length) return;
+    const containerCenter = container.scrollTop + container.clientHeight / 2;
+    let closestIndex = 0;
+    let minDistance = Infinity;
+    pageEls.forEach((el, idx) => {
+      const elCenter = el.offsetTop + el.clientHeight / 2;
+      const dist = Math.abs(containerCenter - elCenter);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = idx;
+      }
+    });
+    setActivePageIndex(closestIndex);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        scrollToPage(activePageIndex + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        scrollToPage(activePageIndex - 1);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose, scrollToPage, activePageIndex]);
+
+  // Mobile fallback view:
+  if (isMobile) {
+    return (
+      <Modal
+        title={'معاينة كتالوج: ' + brand.nameAr}
+        subtitle={'إجمالي صفحات الكتالوج (' + allCatalogPages.length + ' صفحة)'}
+        onClose={onClose}
+        wide
+      >
+        <div className="catalog-preview-scroll">
+          {allCatalogPages.map((page, idx) => (
+            <div key={page.id} className="catalog-preview-page-wrap">
+              <div className="catalog-preview-page-header">
+                <strong>
+                  صفحة {page.pageNumber} ({page.type === 'welcome' ? 'صفحة الترحيب' : page.type === 'closing' ? 'صفحة الختام' : 'صفحة منتج'})
+                </strong>
+                <span>{page.title}</span>
+              </div>
+              <ScaledPageWrapper scale={effectiveScale}>
+                {page.type === 'welcome' ? (
+                  <CatalogWelcomeSheet brand={brand} />
+                ) : page.type === 'closing' ? (
+                  <CatalogClosingSheet brand={brand} />
+                ) : (
+                  <ProductSheet brand={brand} product={page.product} variants={page.variants} />
+                )}
+              </ScaledPageWrapper>
+            </div>
+          ))}
+        </div>
+      </Modal>
+    );
+  }
+
+  // Desktop Full-Screen View:
+  const currentPage = allCatalogPages[activePageIndex] || allCatalogPages[0];
+
   return (
-    <div className="catalog-preview-toolbar">
-      <div className="zoom-toggle-group">
-        <button
-          type="button"
-          className={['zoom-pill-btn', zoom === 'fit' && 'is-active'].filter(Boolean).join(' ')}
-          onClick={() => setZoom('fit')}
-        >
-          ملاءمة الشاشة (عرض كامل)
-        </button>
-        <button
-          type="button"
-          className={['zoom-pill-btn', zoom === 1 && 'is-active'].filter(Boolean).join(' ')}
-          onClick={() => setZoom(1)}
-        >
-          الحجم الفعلي (100%)
-        </button>
-      </div>
-      <div className="zoom-controls">
-        <button
-          type="button"
-          className="zoom-step-btn"
-          onClick={() => setZoom(Math.max(0.15, Number((currentScale - 0.10).toFixed(2))))}
-          title="تصغير"
-        >
-          -
-        </button>
-        <span className="zoom-display-text">{Math.round(currentScale * 100)}%</span>
-        <button
-          type="button"
-          className="zoom-step-btn"
-          onClick={() => setZoom(Math.min(2.0, Number((currentScale + 0.10).toFixed(2))))}
-          title="تكبير"
-        >
-          +
-        </button>
-      </div>
+    <div
+      className="catalog-preview-fullscreen-backdrop"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) onClose();
+      }}
+    >
+      <section
+        className="catalog-preview-fullscreen-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={'معاينة كتالوج: ' + brand.nameAr}
+      >
+        <header className="preview-fullscreen-topbar">
+          <div className="preview-fullscreen-topbar-meta">
+            <BrandBadge brand={brand} />
+            <div>
+              <h2>معاينة كتالوج: {brand.nameAr}</h2>
+              <p>إجمالي {allCatalogPages.length} صفحة جاهزة · عرض كامل ملائم للشاشة</p>
+            </div>
+          </div>
+          <div className="preview-fullscreen-topbar-actions">
+            <button
+              type="button"
+              className={['button', 'button-primary', 'btn-direct-export', exportProgress !== null && 'is-exporting'].filter(Boolean).join(' ')}
+              disabled={busy || !products.length}
+              onClick={onExport}
+              title="تصدير وتحميل ملف PDF المباشر فائق السرعة"
+            >
+              {exportProgress !== null && <span className="export-progress-fill" style={{ width: `${exportProgress}%` }} />}
+              <Icon name="download" size={16} />
+              <span>{exportProgress !== null ? (exportProgress >= 100 ? '100%' : `${exportProgress}%`) : 'تصدير PDF'}</span>
+            </button>
+            <button className="icon-button" onClick={onClose} aria-label="إغلاق المعاينة" title="إغلاق (Esc)">
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        </header>
+
+        <div className="preview-fullscreen-workspace">
+          {/* Thumbnails Sidebar on Desktop */}
+          <aside className="preview-thumbnails-rail" ref={thumbnailsRef}>
+            <div className="preview-thumbnails-header">
+              <Icon name="grid" size={14} />
+              <span>فهرس الصفحات ({allCatalogPages.length})</span>
+            </div>
+            <div className="preview-thumbnails-list">
+              {allCatalogPages.map((page, idx) => (
+                <button
+                  key={page.id}
+                  id={`preview-thumb-${idx}`}
+                  type="button"
+                  className={['preview-thumb-btn', activePageIndex === idx && 'is-active'].filter(Boolean).join(' ')}
+                  onClick={() => scrollToPage(idx)}
+                  title={`الانتقال إلى صفحة ${page.pageNumber}: ${page.title}`}
+                >
+                  <div className="preview-thumb-card">
+                    <span className="preview-thumb-page-num">{page.pageNumber}</span>
+                    {page.type === 'welcome' ? (
+                      <div className="preview-thumb-welcome">
+                        <Icon name="tag" size={16} />
+                        <small>الغلاف</small>
+                      </div>
+                    ) : page.type === 'closing' ? (
+                      <div className="preview-thumb-closing">
+                        <Icon name="check" size={16} />
+                        <small>الختام</small>
+                      </div>
+                    ) : (
+                      <div className="preview-thumb-product">
+                        {page.product.imageUrl ? (
+                          <img src={page.product.imageUrl} alt="" loading="lazy" />
+                        ) : (
+                          <Icon name="image" size={16} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="preview-thumb-info">
+                    <strong>صفحة {page.pageNumber}</strong>
+                    <span>{page.title}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {/* Main Preview Canvas */}
+          <div className="preview-main-canvas-wrap">
+            <div
+              className="preview-main-scroll"
+              ref={mainScrollRef}
+              onScroll={handleMainScroll}
+            >
+              {allCatalogPages.map((page, idx) => (
+                <div
+                  key={page.id}
+                  id={`preview-page-card-${idx}`}
+                  className="catalog-preview-page-wrap"
+                >
+                  <div className="catalog-preview-page-header">
+                    <strong>
+                      صفحة {page.pageNumber} ({page.type === 'welcome' ? 'صفحة الترحيب' : page.type === 'closing' ? 'صفحة الختام' : 'صفحة منتج'})
+                    </strong>
+                    <span>{page.title}{page.subtitle ? ` · ${page.subtitle}` : ''}</span>
+                  </div>
+                  <ScaledPageWrapper scale={effectiveScale}>
+                    {page.type === 'welcome' ? (
+                      <CatalogWelcomeSheet brand={brand} />
+                    ) : page.type === 'closing' ? (
+                      <CatalogClosingSheet brand={brand} />
+                    ) : (
+                      <ProductSheet brand={brand} product={page.product} variants={page.variants} />
+                    )}
+                  </ScaledPageWrapper>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom Desktop Scrubber Bar */}
+            <footer className="preview-desktop-scrubber">
+              <button
+                type="button"
+                className="scrubber-btn"
+                disabled={activePageIndex <= 0}
+                onClick={() => scrollToPage(activePageIndex - 1)}
+                title="الصفحة السابقة"
+              >
+                <Icon name="arrow" size={16} style={{ transform: 'rotate(180deg)' }} />
+                <span>السابقة</span>
+              </button>
+
+              <div className="scrubber-track-wrap">
+                <input
+                  type="range"
+                  min={1}
+                  max={allCatalogPages.length}
+                  value={activePageIndex + 1}
+                  onChange={(e) => scrollToPage(Number(e.target.value) - 1)}
+                  className="preview-scrubber-slider"
+                  aria-label="سحب للتنقل بين الصفحات"
+                  title="اسحب للتنقل السريع بين الصفحات"
+                />
+              </div>
+
+              <span className="scrubber-page-indicator">
+                صفحة <b>{activePageIndex + 1}</b> من <b>{allCatalogPages.length}</b>
+                <span className="scrubber-page-title">
+                  ({currentPage?.title})
+                </span>
+              </span>
+
+              <button
+                type="button"
+                className="scrubber-btn"
+                disabled={activePageIndex >= allCatalogPages.length - 1}
+                onClick={() => scrollToPage(activePageIndex + 1)}
+                title="الصفحة التالية"
+              >
+                <span>التالية</span>
+                <Icon name="arrow" size={16} />
+              </button>
+            </footer>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -2088,8 +2300,11 @@ export default function Home() {
     : Math.max(320, Math.min(940, windowDimensions.width - 48) - 36);
 
   const responsiveScale = Math.min(1.0, Math.max(0.20, Number((modalAvailableWidth / 793.7).toFixed(3))));
-  const effectivePreviewScale = responsiveScale;
-  const effectiveCatalogScale = responsiveScale;
+  const desktopAvailableHeight = Math.max(320, windowDimensions.height - 140);
+  const desktopFitHeightScale = Number((desktopAvailableHeight / 1122.52).toFixed(3));
+  const effectivePreviewScale = isMobile
+    ? responsiveScale
+    : Math.min(responsiveScale, desktopFitHeightScale, 1.0);
 
   const isAnyModalActive = Boolean(
     brandModal ||
@@ -2599,9 +2814,6 @@ export default function Home() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 60));
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      if (pdfRef.current) {
-        expandDescriptionBoxes(pdfRef.current);
-      }
       let css = '';
       for (const style of Array.from(document.querySelectorAll('style'))) {
         css += (style.textContent || '') + '\n';
@@ -3307,57 +3519,18 @@ export default function Home() {
         </div>
       </Modal>
     )}
-    {catalogPreviewModal && activeBrand && (() => {
-      let pageNum = 2;
-      return (
-        <Modal
-          title={'معاينة كتالوج: ' + activeBrand.nameAr}
-          subtitle={'إجمالي صفحات الكتالوج مع الترحيب والختام'}
-          onClose={() => setCatalogPreviewModal(false)}
-          wide
-        >
-          <div className="catalog-preview-scroll">
-            <div className="catalog-preview-page-wrap">
-              <div className="catalog-preview-page-header">
-                <strong>صفحة 1 (صفحة الترحيب)</strong>
-                <span>{activeBrand.nameAr}</span>
-              </div>
-              <ScaledPageWrapper scale={effectiveCatalogScale}>
-                <CatalogWelcomeSheet brand={activeBrand} />
-              </ScaledPageWrapper>
-            </div>
-
-            {products.map((prod) => {
-              const pages = paginateProductVariants(prod, mergeSettings(activeBrand.settings));
-              return pages.map((pageVariants, pIdx) => {
-                const currentPage = pageNum++;
-                return (
-                  <div key={`${prod.id}-p${pIdx}`} className="catalog-preview-page-wrap">
-                    <div className="catalog-preview-page-header">
-                      <strong>صفحة {currentPage}</strong>
-                      <span>{prod.nameAr || prod.nameEn}{pages.length > 1 ? ` (صفحة ${pIdx + 1} من ${pages.length})` : ''}</span>
-                    </div>
-                    <ScaledPageWrapper scale={effectiveCatalogScale}>
-                      <ProductSheet brand={activeBrand} product={prod} variants={pageVariants} />
-                    </ScaledPageWrapper>
-                  </div>
-                );
-              });
-            })}
-
-            <div className="catalog-preview-page-wrap">
-              <div className="catalog-preview-page-header">
-                <strong>صفحة {pageNum} (صفحة الختام)</strong>
-                <span>خدمتكم تسعدنا</span>
-              </div>
-              <ScaledPageWrapper scale={effectiveCatalogScale}>
-                <CatalogClosingSheet brand={activeBrand} />
-              </ScaledPageWrapper>
-            </div>
-          </div>
-        </Modal>
-      );
-    })()}
+    {catalogPreviewModal && activeBrand && (
+      <CatalogPreviewModal
+        brand={activeBrand}
+        products={products}
+        onClose={() => setCatalogPreviewModal(false)}
+        onExport={exportDirectPdf}
+        exportProgress={exportProgress}
+        busy={busy}
+        windowDimensions={windowDimensions}
+        isMobile={isMobile}
+      />
+    )}
     <nav className="mobile-bottom-bar" aria-label="شريط التنقل السريع">
       {nav.map((item) => (
         <button
