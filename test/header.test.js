@@ -9,6 +9,7 @@ const BrandSettingsSchema = z.object({
   headerTextAr: z.string().max(250).optional().describe('نص الهيدر العربي'),
   headerTextEn: z.string().max(250).optional().describe('نص الهيدر الإنجليزي'),
   headerLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار الهيدر'),
+  headerLogoHeight: z.number().min(20).max(100).optional().describe('ارتفاع الشعار في الهيدر بنقاط الطباعة (pt) بين 20 و 100'),
   visible: z
     .object({
       description: z.boolean().optional(),
@@ -65,5 +66,22 @@ describe('Catalog Header Branding & Settings', () => {
       headerLogoUrl: '',
     });
     assert.equal(parsed.headerLogoUrl, '');
+  });
+
+  it('validates custom headerLogoHeight within valid bounds (20 to 100 pt)', () => {
+    const parsed = BrandSettingsSchema.parse({
+      headerType: 'image',
+      headerLogoUrl: 'https://res.cloudinary.com/demo/image/upload/logo.png',
+      headerLogoHeight: 85,
+    });
+    assert.equal(parsed.headerLogoHeight, 85);
+  });
+
+  it('rejects headerLogoHeight below minimum bound', () => {
+    assert.throws(() => {
+      BrandSettingsSchema.parse({
+        headerLogoHeight: 15,
+      });
+    }, (err) => err instanceof z.ZodError);
   });
 });

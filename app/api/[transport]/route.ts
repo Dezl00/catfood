@@ -71,6 +71,7 @@ const BrandSettingsSchema = z.object({
   headerTextAr: z.string().max(250).optional().describe('نص الهيدر العربي'),
   headerTextEn: z.string().max(250).optional().describe('نص الهيدر الإنجليزي'),
   headerLogoUrl: z.string().url().or(z.literal('')).optional().describe('رابط صورة شعار الهيدر'),
+  headerLogoHeight: z.number().min(20).max(100).optional().describe('ارتفاع الشعار في الهيدر بنقاط الطباعة (pt) بين 20 و 100'),
   visible: z
     .object({
       description: z.boolean().optional(),

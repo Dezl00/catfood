@@ -114,12 +114,20 @@ export async function POST(request) {
       return NextResponse.json({ error: 'حجم الكتالوج كبير جداً' }, { status: 413 });
     }
     
-    // Ensure eager loading and compress all catalog images to lightweight JPEG for small PDF file sizes
+    // Ensure eager loading; keep transparent PNG for header logos and optimize products
     const cleanHtml = html
       .replace(/\sloading=["']lazy["']/gi, ' loading="eager"')
       .replace(/\sdecoding=["']async["']/gi, ' decoding="sync"')
-      .replace(/(<img\s+[^>]*src=["'])(https?:\/\/[^"']*cloudinary\.com\/[^"']*\/upload\/[^"']*)(["'])/gi, (match, before, url, after) => {
-        return before + optimizeCloudinaryUrl(url, { width: 640, quality: 'auto:eco', format: 'jpg', background: 'white' }) + after;
+      .replace(/<img\s+([^>]*?)src=["'](https?:\/\/[^"']*cloudinary\.com\/[^"']*\/upload\/[^"']*)["']([^>]*?)>/gi, (match, before, url, after) => {
+        const fullTag = match.toLowerCase();
+        const isHeaderLogo = fullTag.includes('cf-header-logo-img') || fullTag.includes('cf-brand-logo-img');
+        if (isHeaderLogo) {
+          // Transparent PNG: NEVER force JPEG or add white background!
+          const optimized = optimizeCloudinaryUrl(url, { width: 1200, quality: 'auto:good', format: 'png', background: '' });
+          return `<img ${before}src="${optimized}"${after}>`;
+        }
+        const optimized = optimizeCloudinaryUrl(url, { width: 640, quality: 'auto:eco', format: 'jpg', background: 'white' });
+        return `<img ${before}src="${optimized}"${after}>`;
       });
 
     const origin = new URL(request.url).origin;

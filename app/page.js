@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS = {
   headerTextAr: 'كات فوود',
   headerTextEn: 'CAT FOOD',
   headerLogoUrl: '',
+  headerLogoHeight: 70,
 };
 
 const newId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
@@ -57,6 +58,9 @@ const mergeSettings = (settings) => {
     headerTextAr: typeof current.headerTextAr === 'string' ? current.headerTextAr : DEFAULT_SETTINGS.headerTextAr,
     headerTextEn: typeof current.headerTextEn === 'string' ? current.headerTextEn : DEFAULT_SETTINGS.headerTextEn,
     headerLogoUrl: typeof current.headerLogoUrl === 'string' ? current.headerLogoUrl : DEFAULT_SETTINGS.headerLogoUrl,
+    headerLogoHeight: Number.isFinite(Number(current.headerLogoHeight)) && Number(current.headerLogoHeight) >= 20 && Number(current.headerLogoHeight) <= 100
+      ? Math.round(Number(current.headerLogoHeight))
+      : DEFAULT_SETTINGS.headerLogoHeight,
   };
 };
 const price = (value, currency) => value === '' || value === undefined ? '—' : String(value) + ' ' + currency;
@@ -230,6 +234,7 @@ function CatalogHeader({ brand, settings: propSettings }) {
   const isImage = settings.headerType === 'image' && Boolean(settings.headerLogoUrl);
   const headerTextAr = settings.headerTextAr || 'كات فوود';
   const headerTextEn = settings.headerTextEn || 'CAT FOOD';
+  const logoHeight = settings.headerLogoHeight || 70;
 
   return (
     <>
@@ -237,9 +242,10 @@ function CatalogHeader({ brand, settings: propSettings }) {
       {isImage ? (
         <div className="cf-header-logo-wrap">
           <img
-            src={optimizeCloudinaryUrl(settings.headerLogoUrl, { width: 900, format: 'auto', background: '' })}
+            src={optimizeCloudinaryUrl(settings.headerLogoUrl, { width: 1200, format: 'png', background: '', quality: 'auto:good' })}
             alt={headerTextAr || 'شعار الكتالوج'}
             className="cf-header-logo-img"
+            style={{ maxHeight: `${logoHeight}pt` }}
             loading="eager"
             decoding="sync"
           />
@@ -4352,9 +4358,9 @@ export default function Home() {
     if (!file || !activeBrand) return;
     setUploadingHeaderLogo(true);
     try {
-      const optimized = await optimizeImageForUpload(file);
       const formData = new FormData();
-      formData.set('file', optimized);
+      // Keep original file intact (especially PNG transparency) without canvas re-compression
+      formData.set('file', file);
       formData.set('folder', (activeBrand.id || 'general') + '/logos');
       formData.set('brandId', activeBrand.id);
       const result = await request('/api/upload', { method: 'POST', body: formData });
@@ -4373,7 +4379,7 @@ export default function Home() {
     const current = mergeSettings(activeBrand.settings);
     const labelType = current.headerType === 'image' ? 'شعار صورة' : 'شعار نصي';
     const confirmed = window.confirm(
-      `هل تريد تطبيق إعدادات هذا الهيدر (${labelType} والنصوص/الصورة الحالية) على جميع البراندات في الكتالوج؟`
+      `هل تريد تطبيق إعدادات هذا الهيدر (${labelType} والنصوص/الصورة والحجم الحالي) على جميع البراندات في الكتالوج؟`
     );
     if (!confirmed) return;
     setApplyingAllHeaders(true);
@@ -4388,6 +4394,7 @@ export default function Home() {
             headerTextAr: current.headerTextAr,
             headerTextEn: current.headerTextEn,
             headerLogoUrl: current.headerLogoUrl,
+            headerLogoHeight: current.headerLogoHeight || 70,
           },
         }),
       });
@@ -5075,8 +5082,9 @@ export default function Home() {
                         <label className="field-label" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 600 }}>معاينة الشعار داخل شريط الهيدر</label>
                         <div className="header-logo-preview-box">
                           <img
-                            src={mergeSettings(activeBrand.settings).headerLogoUrl}
+                            src={optimizeCloudinaryUrl(mergeSettings(activeBrand.settings).headerLogoUrl, { width: 1200, format: 'png', background: '', quality: 'auto:good' })}
                             alt="شعار الهيدر"
+                            style={{ maxHeight: `${Math.round(((mergeSettings(activeBrand.settings).headerLogoHeight || 70) / 107.2) * 80)}px` }}
                           />
                           {uploadingHeaderLogo && <div className="product-image-uploading-overlay">جارٍ الرفع…</div>}
                         </div>
@@ -5103,6 +5111,57 @@ export default function Home() {
                           >
                             <Icon name="trash" size={15} /> إزالة الشعار
                           </button>
+                        </div>
+
+                        {/* التحكم في حجم الشعار */}
+                        <div className="header-logo-size-control" style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #e4e4e7' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <label className="field-label" style={{ fontSize: '12px', fontWeight: 600, color: '#09090b', margin: 0 }}>
+                              التحكم في حجم الشعار في الهيدر
+                            </label>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#09090b', background: '#e4e4e7', padding: '2px 8px', borderRadius: '6px', direction: 'ltr' }}>
+                              {(mergeSettings(activeBrand.settings).headerLogoHeight || 70)} pt
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '11px', color: '#71717a' }}>أصغر</span>
+                            <input
+                              type="range"
+                              min="30"
+                              max="95"
+                              step="1"
+                              value={mergeSettings(activeBrand.settings).headerLogoHeight || 70}
+                              onChange={(e) => updateSettings('headerLogoHeight', Number(e.target.value))}
+                              style={{ flex: 1, accentColor: '#09090b', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', color: '#71717a' }}>أكبر</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
+                            {[
+                              { label: 'صغير (45pt)', value: 45 },
+                              { label: 'متوسط (60pt)', value: 60 },
+                              { label: 'افتراضي (70pt)', value: 70 },
+                              { label: 'كبير (82pt)', value: 82 },
+                              { label: 'أقصى ارتفاع (95pt)', value: 95 },
+                            ].map((preset) => (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                className="button button-ghost"
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '3px 10px',
+                                  background: (mergeSettings(activeBrand.settings).headerLogoHeight || 70) === preset.value ? '#09090b' : '#ffffff',
+                                  color: (mergeSettings(activeBrand.settings).headerLogoHeight || 70) === preset.value ? '#ffffff' : '#71717a',
+                                  border: '1px solid #e4e4e7',
+                                  borderRadius: '6px',
+                                }}
+                                onClick={() => updateSettings('headerLogoHeight', preset.value)}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ) : (
