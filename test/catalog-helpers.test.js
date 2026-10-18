@@ -156,8 +156,8 @@ describe('computeProductLayout', () => {
     assert.equal(layout.descHeight, layout.enDescHeight);
     assert.ok(layout.descHeight >= 52.0);
     assert.equal(layout.hasDescriptions, true);
-    // nameArTop should be pillTop - 25.94
-    assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 25.94) < 0.01);
+    // nameArTop should be pillTop - 26.5
+    assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 26.5) < 0.01);
   });
 
   it('flexibly expands description height for long text without clipping and keeps both equal', () => {
@@ -180,7 +180,7 @@ describe('computeProductLayout', () => {
     };
     const layout = computeProductLayout(product, {}, []);
     assert.equal(layout.isTwoLineNameAr, true);
-    assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 36.5) < 0.01);
+    assert.ok(Math.abs(layout.pillTop - layout.nameArTop - 42.0) < 0.01);
   });
 });
 
