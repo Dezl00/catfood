@@ -32,6 +32,7 @@ import {
   getVariantsPerPage,
   paginateProductVariants,
 } from '../lib/catalog-helpers';
+import AiVisualMatchModal from '../components/AiVisualMatchModal';
 
 const DEFAULT_SETTINGS = {
   footerText: 'السعر غير شامل الضريبة',
@@ -80,6 +81,7 @@ function Icon({ name, size = 20 }) {
     columns1: <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" stroke="none" />,
     columns2: <><rect x="3.5" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /><rect x="13" y="4" width="7.5" height="16" rx="2" fill="currentColor" stroke="none" /></>,
     square: <rect x="3" y="3" width="18" height="18" rx="4" />,
+    sparkles: <><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" /><path d="M5 3v4M3 5h4M19 17v4M17 19h4" /></>,
   };
   return <svg {...props}>{shapes[name] || shapes.grid}</svg>;
 }
@@ -2802,7 +2804,7 @@ function CreateFolderModal({ onClose, onCreated, notify }) {
   );
 }
 
-function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
+function GalleryView({ brands = [], activeBrand, notify, setConfirmModal, onOpenAiMatch }) {
   const [selectedFolder, setSelectedFolder] = useState('folders'); // 'folders' | 'all' | 'general' | brandId | customFolderName
   const [mediaList, setMediaList] = useState([]);
   const [foldersData, setFoldersData] = useState(null);
@@ -2978,6 +2980,15 @@ function GalleryView({ brands = [], activeBrand, notify, setConfirmModal }) {
               />
             </label>
           )}
+          <button
+            type="button"
+            className="button button-ai-match"
+            onClick={onOpenAiMatch}
+            title="فحص عبوات وتصميمات الصور بالذكاء الاصطناعي ومطابقتها بالمنتجات تلقائياً"
+          >
+            <Icon name="sparkles" size={17} />
+            <span>الربط البصري (AI)</span>
+          </button>
           <button
             type="button"
             className="button button-ghost"
@@ -3384,6 +3395,7 @@ export default function Home() {
   const [previewModal, setPreviewModal] = useState(null);
   const [catalogPreviewModal, setCatalogPreviewModal] = useState(false);
   const [bulkEditModal, setBulkEditModal] = useState(false);
+  const [showAiMatchModal, setShowAiMatchModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
   const [activeDragId, setActiveDragId] = useState(null);
@@ -4470,6 +4482,14 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
+                      className="button button-ghost action-chip action-chip--ai"
+                      onClick={() => setShowAiMatchModal(true)}
+                      title="مطابقة وربط صور المنتجات بالذكاء الاصطناعي تلقائياً عبر فحص تصميم العبوة"
+                    >
+                      <Icon name="sparkles" size={16} /> <span>ربط الصور (AI)</span>
+                    </button>
+                    <button
+                      type="button"
                       className="button button-ghost action-chip"
                       onClick={() => go('import')}
                     >
@@ -4608,7 +4628,15 @@ export default function Home() {
           )}
         </section>
       )}
-      {view === 'gallery' && <GalleryView brands={brands} activeBrand={activeBrand} notify={notify} setConfirmModal={setConfirmModal} />}
+      {view === 'gallery' && (
+        <GalleryView
+          brands={brands}
+          activeBrand={activeBrand}
+          notify={notify}
+          setConfirmModal={setConfirmModal}
+          onOpenAiMatch={() => setShowAiMatchModal(true)}
+        />
+      )}
       {view === 'import' && (
         <section className="page-shell import-page">
           {activeBrand ? (
@@ -4905,6 +4933,26 @@ export default function Home() {
         </button>
       ))}
     </nav>
+    {showAiMatchModal && (
+      <AiVisualMatchModal
+        isOpen={showAiMatchModal}
+        onClose={() => setShowAiMatchModal(false)}
+        brand={activeBrand}
+        brands={brands}
+        onApplied={(updatedProducts) => {
+          if (activeBrand) {
+            setActiveBrand((prev) => ({
+              ...prev,
+              products: updatedProducts,
+            }));
+            setBrands((prev) =>
+              prev.map((b) => (b.id === activeBrand.id ? { ...b, products: updatedProducts } : b))
+            );
+          }
+        }}
+        notify={notify}
+      />
+    )}
     {confirmModal && <ConfirmModal config={confirmModal} onClose={() => setConfirmModal(null)} />}
     {toast && (
       <div className="toast" role="status" aria-live="polite">
